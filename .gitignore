@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environments
+.env
+GMambaIR_env/
+*.GMambaIR_env/
+
+# Logs
+logs/
+*.log
+
+# Checkpoints / data
+experiments/
+datasets/
+results/
+tb_logger/

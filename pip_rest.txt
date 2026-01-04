@@ -1,0 +1,13 @@
+absl-py==2.1.0
+cachetools==5.3.3
+einops==0.7.0
+huggingface-hub==0.21.1
+opencv-python==4.9.0.80
+protobuf==4.25.3
+regex==2023.12.25
+safetensors==0.4.2
+scipy==1.10.1
+timm==0.9.16
+tqdm==4.66.2
+transformers==4.38.1
+tensorboard==2.14.0
