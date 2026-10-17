@@ -17,3 +17,5 @@ experiments/
 datasets/
 results/
 tb_logger/
+GMambaIR_env_broken/
+.DS_Store

@@ -1,11 +1,11 @@
 #!/encs/bin/tcsh
 
-#SBATCH --job-name=GMamabIR_inf          # Job name
+#SBATCH --job-name=GatedMamabIRv2_inf          # Job name
 #SBATCH --output=./logs/%x_%j.out             # Standard output and error log
 #SBATCH --nodes=1                              # Number of nodes
 #SBATCH --ntasks=1                           # Number of tasks (usually 1 for GPU jobs)
 #SBATCH --partition=pt
-#SBATCH --gres=gpu:nvidia_a100_7g.80gb:1
+#SBATCH --gres=gpu:1
 #SBATCH --mem=40G                    # Adjust memory as needed
 
 
@@ -94,7 +94,7 @@ setenv ATTN_MODE "xformers"
 
 
 
-python basicsr/test.py -opt options/test/mambairv2/test_MambaIRv2_SR_x2.yml
+python basicsr/test.py -opt options/test/gatedmambair/test_GatedMambaIR_SR_x2.yml
 
 
 echo "done!"

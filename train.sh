@@ -91,9 +91,21 @@ echo "Start training at `date`"
 setenv ATTN_MODE "xformers"
 
 
-# python -m torch.distributed.launch --nproc_per_node=1 --master_port=1234 basicsr/train.py -opt options/train/gatedmambair/train_GatedMambaIR_SR_x2.yml --launcher pytorch
-# python -m torch.distributed.launch --nproc_per_node=1 --master_port=1234 basicsr/train.py -opt options/train/gatedmambair/train_GatedMambaIR_SR_x3.yml --launcher pytorch
-python -m torch.distributed.launch --nproc_per_node=1 --master_port=1234 basicsr/train.py -opt options/train/gatedmambair/train_GatedMambaIR_SR_x4.yml --launcher pytorch
+# usage: sbatch train.sh <train config yml>, e.g.
+#   sbatch train.sh options/train/gatedmambair/train_GatedMambaIR_SR_x2_delta_50k.yml
+#   sbatch train.sh options/train/gatedmambair/train_GatedMambaIR_SR_x2_gla_50k.yml
+#   sbatch train.sh options/train/mambairv2/train_MambaIRv2_SR_x2_50k.yml
+if ($#argv < 1) then
+  echo "usage: sbatch train.sh <train config yml>"
+  exit 1
+endif
+set CFG = $argv[1]
+# one port per job so several runs can share a node
+@ PORT = 20000 + ($SLURM_JOB_ID % 10000)
+echo "Config: $CFG  master_port: $PORT"
+
+# --auto_resume picks up the latest state in experiments/<name>/training_states if the job is restarted
+python -m torch.distributed.launch --nproc_per_node=1 --master_port=$PORT basicsr/train.py -opt $CFG --launcher pytorch --auto_resume
 
 # python /speed-scratch/se_gham/GatedMambaIR/basicsr/archs/chunk_gated_delta_triton.py
 

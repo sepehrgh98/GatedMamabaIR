@@ -8,10 +8,25 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_
 from basicsr.utils.registry import ARCH_REGISTRY
 from einops import rearrange, repeat
 
-from basicsr.archs.chunk import chunk_gated_delta_lowrank, chunk_gated_delta_fullrank
+from basicsr.archs.chunk import chunk_gated_delta_lowrank, chunk_gated_delta_rule
 
 def l2norm(x, dim=-1, eps=1e-12):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
+
+
+def safe_gumbel_softmax(logits, tau=1.0, hard=False, dim=-1):
+    """F.gumbel_softmax, but with uniforms clamped away from 0 and 1.
+
+    F.gumbel_softmax uses exponential_(), which can return an exact 0 in torch 2.0; -log(0) = inf then
+    turns the softmax into NaN.
+    """
+    u = torch.rand_like(logits).clamp_(1e-10, 1 - 1e-7)
+    y_soft = ((logits - torch.log(-torch.log(u))) / tau).softmax(dim)
+    if not hard:
+        return y_soft
+    index = y_soft.argmax(dim, keepdim=True)
+    y_hard = torch.zeros_like(logits).scatter_(dim, index, 1.0)
+    return y_hard - y_soft.detach() + y_soft
 
 
 def index_reverse(index):
@@ -239,6 +254,10 @@ class GSSM(nn.Module):
         use_prompt=True,
         use_lowrank=False,
         rank=16,
+        use_delta=False,
+        chunk_size=64,
+        gate='head',
+        lean=False,
     ):
 
         super().__init__()
@@ -255,8 +274,8 @@ class GSSM(nn.Module):
 
         dk, dv, num_heads = make_multihead_dims(
             hidden,
-            key_ratio=0.25,
-            head_dim=16
+            key_ratio=key_ratio,
+            head_dim=head_dim
         )
 
 
@@ -269,10 +288,17 @@ class GSSM(nn.Module):
             use_prompt=use_prompt,
             use_lowrank=use_lowrank,
             rank=rank,
+            use_delta=use_delta,
+            chunk_size=chunk_size,
+            gate=gate,
+            lean=lean,
+            d_state=d_state,
         )
 
-        # project prompt d_state -> hidden
-        self.prompt_proj = nn.Linear(self.d_state, hidden, bias=False)
+        self.lean = lean
+        if not lean:
+            # project prompt d_state -> hidden
+            self.prompt_proj = nn.Linear(self.d_state, hidden, bias=False)
 
 
         self.out_norm = nn.LayerNorm(hidden)
@@ -304,10 +330,11 @@ class GSSM(nn.Module):
         full_embedding = self.embeddingB.weight @ token.weight  # [128, C]
 
         pred_route = self.route(x)  # [B, HW, num_token]
-        cls_policy = F.gumbel_softmax(pred_route, hard=True, dim=-1)  # [B, HW, num_token]
+        cls_policy = safe_gumbel_softmax(pred_route, hard=True, dim=-1)  # [B, HW, num_token]
 
         prompt = torch.matmul(cls_policy, full_embedding).view(B, n, self.d_state)
-        prompt = self.prompt_proj(prompt)
+        if not self.lean:
+            prompt = self.prompt_proj(prompt)
 
         detached_index = torch.argmax(cls_policy.detach(), dim=-1, keepdim=False).view(B, n)  # [B, HW]
         x_sort_values, x_sort_indices = torch.sort(detached_index, dim=-1, stable=False)
@@ -336,10 +363,23 @@ class GatedDeltaScan(nn.Module):
         use_prompt=True,
         use_lowrank=False,
         rank=16,
+        use_delta=False,
+        chunk_size=64,
+        gate='head',
+        lean=False,
+        d_state=16,
     ):
+        """gate: 'head' = one decay per head; 'channel' = one decay per key channel, bounded to
+        log alpha in [-1, 0] so chunk_gated_delta_rule's exponents stay finite (needs chunk_size <= 160).
+        lean: size-matched variant closer to MambaIRv2's scan: v = x (no v projection), the d_state prompt
+        is added to q and the gates only, no inner norm/projection (GSSM already has one), Mamba-style D skip.
+        """
         super().__init__()
         assert dk % num_heads == 0 and dv % num_heads == 0
         assert rank > 0
+        assert gate in ('head', 'channel'), gate
+        assert gate == 'head' or (not use_lowrank and chunk_size <= 160), 'channel gate: full-rank, chunk_size <= 160'
+        assert not lean or (dv == C and not use_lowrank), f'lean needs v = x: dv ({dv}) must equal C ({C})'
 
         self.C = C
         self.dk = dk
@@ -351,21 +391,29 @@ class GatedDeltaScan(nn.Module):
 
         self.use_lowrank = use_lowrank
         self.rank = rank
+        self.use_delta = use_delta
+        self.chunk_size = chunk_size
+        self.gate = gate
+        self.lean = lean
+        n_gate = dk if gate == 'channel' else num_heads
 
 
         # projections
         self.q_proj = nn.Linear(C, dk, bias=False)
         self.k_proj = nn.Linear(C, dk, bias=False)
-        self.v_proj = nn.Linear(C, dv, bias=False)
-        self.a_proj = nn.Linear(C, num_heads, bias=True)
+        if not lean:
+            self.v_proj = nn.Linear(C, dv, bias=False)
+        self.a_proj = nn.Linear(C, n_gate, bias=True)
         self.b_proj = nn.Linear(C, num_heads, bias=True)
 
         if use_prompt:
-            self.qp_proj = nn.Linear(C, dk, bias=False)
-            self.kp_proj = nn.Linear(C, dk, bias=False)
-            self.vp_proj = nn.Linear(C, dv, bias=False)
-            self.ap_proj = nn.Linear(C, num_heads, bias=False)
-            self.bp_proj = nn.Linear(C, num_heads, bias=False)
+            p_in = d_state if lean else C
+            self.qp_proj = nn.Linear(p_in, dk, bias=False)
+            if not lean:
+                self.kp_proj = nn.Linear(C, dk, bias=False)
+                self.vp_proj = nn.Linear(C, dv, bias=False)
+            self.ap_proj = nn.Linear(p_in, n_gate, bias=False)
+            self.bp_proj = nn.Linear(p_in, num_heads, bias=False)
 
 
     
@@ -374,117 +422,76 @@ class GatedDeltaScan(nn.Module):
             self.g_proj = nn.Linear(self.dk_h, rank, bias=False)
 
 
-        # FP32 LayerNorm (important)
-        self.out_norm = nn.LayerNorm(dv)
-        self.out_proj = nn.Linear(dv, C, bias=False)
+        if lean:
+            self.D = nn.Parameter(torch.ones(C))  # skip term, as Mamba's D
+        else:
+            # FP32 LayerNorm (important)
+            self.out_norm = nn.LayerNorm(dv)
+            self.out_proj = nn.Linear(dv, C, bias=False)
 
-        self.res_scale = nn.Parameter(torch.zeros(1))
+            self.res_scale = nn.Parameter(torch.zeros(1))
 
-    def forward(self, x, prompt=None, chunk_size=256, stable_gamma=True):
+    def forward(self, x, prompt=None):
         """
-        x: [B,L,C]
+        x: [B,L,C], prompt: [B,L,C] or None
         """
         B, L, C = x.shape
-        T = chunk_size
 
-        # ---- padding ----
-        if L % T != 0:
-            pad = T - (L % T)
-            x = F.pad(x, (0, 0, 0, pad))
-            if self.use_prompt:
-                prompt = F.pad(prompt, (0, 0, 0, pad))
-            Lp = L + pad
-        else:
-            pad = 0
-            Lp = L
-
-        n_chunks = Lp // T
-
-        # ---- projections (FP32 here) ----
         q = self.q_proj(x)
         k = self.k_proj(x)
-        v = self.v_proj(x)
+        v = x if self.lean else self.v_proj(x)
         a = self.a_proj(x)
         b = self.b_proj(x)
 
         if self.use_prompt:
             q = q + self.qp_proj(prompt)
-            k = k + self.kp_proj(prompt)
-            v = v + self.vp_proj(prompt)
+            if not self.lean:
+                k = k + self.kp_proj(prompt)
+                v = v + self.vp_proj(prompt)
             a = a + self.ap_proj(prompt)
             b = b + self.bp_proj(prompt)
 
-        alpha = torch.sigmoid(a)
-        beta  = torch.sigmoid(b)
-
-        # ---- split heads ----
-        q = q.view(B, Lp, self.h, self.dk_h)
-        k = k.view(B, Lp, self.h, self.dk_h)
-        v = v.view(B, Lp, self.h, self.dv_h)
-
-        q = l2norm(q, dim=-1)
-        k = l2norm(k, dim=-1)
-
-        q = q.permute(0, 2, 1, 3).contiguous()
-        k = k.permute(0, 2, 1, 3).contiguous()
-        v = v.permute(0, 2, 1, 3).contiguous()
-        alpha = alpha.permute(0, 2, 1).contiguous()
-        beta  = beta.permute(0, 2, 1).contiguous()
-
-        # ---- cast heavy tensors to BF16 ----
-        q = q.to(torch.bfloat16)
-        k = k.to(torch.bfloat16)
-        v = v.to(torch.bfloat16)
-
-
-        # ---- init state ----
-        if not self.use_lowrank:
-            S = x.new_zeros(B, self.h, self.dv_h, self.dk_h, dtype=torch.bfloat16)
+        # ---- split heads: [B,H,L,D] ----
+        q = l2norm(q.view(B, L, self.h, self.dk_h), dim=-1).transpose(1, 2)
+        k = l2norm(k.view(B, L, self.h, self.dk_h), dim=-1).transpose(1, 2)
+        v = v.view(B, L, self.h, self.dv_h).transpose(1, 2)
+        if self.gate == 'channel':
+            log_alpha = -torch.sigmoid(a.float()).view(B, L, self.h, self.dk_h).transpose(1, 2)
         else:
-            U = x.new_zeros(B, self.h, self.dv_h, self.rank, dtype=torch.bfloat16)
-            W = x.new_zeros(B, self.h, self.dk_h, self.rank, dtype=torch.bfloat16)
+            log_alpha = F.logsigmoid(a.float()).transpose(1, 2)  # decay gate, kept in log space
+        beta = torch.sigmoid(b).transpose(1, 2)
 
-        outs = []
-        for ci in range(n_chunks):
-            s = ci * T
-            e = s + T
-
-            
-            Qc = q[:, :, s:e]
-            Kc = k[:, :, s:e]
-            Vc = v[:, :, s:e]
-            Ac = alpha[:, :, s:e]
-            Bc = beta[:, :, s:e]
-
-            if not self.use_lowrank:
-                Oc, S = chunk_gated_delta_fullrank(
-                    Qc, Kc, Vc, Ac, Bc, S,
-                    stable_gamma=stable_gamma
-                )
-            else:
-                # g from Kc: [B,H,T,rank]
-                # apply per-head linear: flatten (B*H*T, DK) -> (B*H*T, r)
-                K_flat = Kc.reshape(B * self.h * T, self.dk_h)
-                g = self.g_proj(K_flat.float())  # force fp32 compute
-                g = g.view(B, self.h, T, self.rank).to(torch.bfloat16)
-
-
-                Oc, U, W = chunk_gated_delta_lowrank(
-                    Qc, Kc, Vc, Ac, Bc, U, W, g,
-                    stable_gamma=stable_gamma
-                )
-
-            outs.append(Oc)
-
-        o = torch.cat(outs, dim=2)        # [B,H,Lp,DV]
-        o = o.permute(0, 2, 1, 3).reshape(B, Lp, self.dv)
-
-        if pad:
-            o = o[:, :L]
+        if not self.use_lowrank:
+            o, _ = chunk_gated_delta_rule(q, k, v, log_alpha, beta, chunk_size=self.chunk_size,
+                                          use_delta=self.use_delta)
+        else:
+            o = self._lowrank_scan(q, k, v, log_alpha.exp(), beta)
+        o = o.transpose(1, 2).reshape(B, L, self.dv)
+        if self.lean:
+            return o.to(x.dtype) + self.D * x
 
         # ---- FP32 normalization + residual ----
         y = self.out_proj(self.out_norm(o.float())).to(x.dtype)
         return x + self.res_scale * y
+
+    def _lowrank_scan(self, q, k, v, alpha, beta, T=256):
+        """Legacy low-rank path, unchanged: it still has no within-chunk read (see docs/GatedMambaIR.md)."""
+        B, H, L, _ = q.shape
+        pad = (T - L % T) % T
+        if pad:
+            q, k, v = (F.pad(t, (0, 0, 0, pad)) for t in (q, k, v))
+            alpha, beta = F.pad(alpha, (0, pad), value=1.), F.pad(beta, (0, pad))
+        q, k, v = q.to(torch.bfloat16), k.to(torch.bfloat16), v.to(torch.bfloat16)
+        U = q.new_zeros(B, H, self.dv_h, self.rank)
+        W = q.new_zeros(B, H, self.dk_h, self.rank)
+        outs = []
+        for s in range(0, L + pad, T):
+            Kc = k[:, :, s:s + T]
+            g = self.g_proj(Kc.float()).to(torch.bfloat16)
+            Oc, U, W = chunk_gated_delta_lowrank(q[:, :, s:s + T], Kc, v[:, :, s:s + T], alpha[:, :, s:s + T],
+                                                 beta[:, :, s:s + T], U, W, g)
+            outs.append(Oc)
+        return torch.cat(outs, dim=2)[:, :, :L]
 
 
 class AttentiveLayer(nn.Module):
@@ -507,6 +514,10 @@ class AttentiveLayer(nn.Module):
                  head_dim=16,
                  use_lowrank=False,
                  rank=16,
+                 use_delta=False,
+                 chunk_size=64,
+                 gate='head',
+                 lean=False,
                  ):
         super().__init__()
 
@@ -554,6 +565,10 @@ class AttentiveLayer(nn.Module):
             use_prompt=use_prompt,
             use_lowrank=use_lowrank,
             rank=rank,
+            use_delta=use_delta,
+            chunk_size=chunk_size,
+            gate=gate,
+            lean=lean,
         )
 
         mlp_hidden_dim = int(dim * self.mlp_ratio)
@@ -641,6 +656,10 @@ class BasicBlock(nn.Module):
                  use_prompt=True,
                  use_lowrank=False,
                  rank=16,
+                 use_delta=False,
+                 chunk_size=64,
+                 gate='head',
+                 lean=False,
             ):
 
         super().__init__()
@@ -671,6 +690,10 @@ class BasicBlock(nn.Module):
                     use_prompt=use_prompt,
                     use_lowrank=use_lowrank,
                     rank=rank,
+                    use_delta=use_delta,
+                    chunk_size=chunk_size,
+                    gate=gate,
+                    lean=lean,
                 )
             )
 
@@ -717,6 +740,10 @@ class ASSB(nn.Module):
                  use_prompt=True,
                  use_lowrank=False,
                  rank=16,
+                 use_delta=False,
+                 chunk_size=64,
+                 gate='head',
+                 lean=False,
             ):
         super(ASSB, self).__init__()
 
@@ -750,6 +777,10 @@ class ASSB(nn.Module):
             use_prompt=use_prompt,
             use_lowrank=use_lowrank,
             rank=rank,
+            use_delta=use_delta,
+            chunk_size=chunk_size,
+            gate=gate,
+            lean=lean,
         )
 
         if resi_connection == '1conv':
@@ -928,6 +959,10 @@ class GatedMambaIR(nn.Module):
                  use_prompt=True,
                  use_lowrank=False,
                  rank=16,
+                 use_delta=False,
+                 chunk_size=64,
+                 gate='head',
+                 lean=False,
                  **kwargs):
         super().__init__()
         num_in_ch = in_chans
@@ -1008,6 +1043,10 @@ class GatedMambaIR(nn.Module):
                 use_prompt=use_prompt,
                 use_lowrank=use_lowrank,
                 rank=rank,
+                use_delta=use_delta,
+                chunk_size=chunk_size,
+                gate=gate,
+                lean=lean,
             )
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)

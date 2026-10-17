@@ -1,4 +1,5 @@
 import logging
+import time
 import torch
 import os
 from os import path as osp
@@ -8,11 +9,11 @@ parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(parent_dir)
 from basicsr.data import build_dataloader, build_dataset
 from basicsr.models import build_model
-from basicsr.utils import get_root_logger, get_time_str, make_exp_dirs
+from basicsr.utils import get_root_logger, get_time_str, make_exp_dirs, results_tracker
 from basicsr.utils.options import dict2str, parse_options
 
 
-from tools.scan_hook import SelectiveScanObserver
+from basicsr.tools.scan_hook import SelectiveScanObserver
 import numpy as np
 
 
@@ -54,10 +55,20 @@ def test_pipeline(root_path):
     # scan_module.register_forward_pre_hook(observer.hook_in)
     # scan_module.register_forward_hook(observer.hook_out)
 
+    git = results_tracker.git_info(root_path)
+    results_csv = opt['val'].get('results_csv', osp.join(root_path, 'docs', 'results.csv'))
     for test_loader in test_loaders:
         test_set_name = test_loader.dataset.opt['name']
         logger.info(f'Testing {test_set_name}...')
+        start = time.time()
         model.validation(test_loader, current_iter=opt['name'], tb_logger=None, save_img=opt['val']['save_img'])
+        runtime_s = time.time() - start
+
+        if getattr(model, 'metric_results', None):
+            row = results_tracker.make_row(opt, test_set_name, model.metric_results, len(test_loader.dataset),
+                                           runtime_s, opt.get('opt_path', ''), git, tag=opt['val'].get('tag', ''))
+            results_tracker.append_rows(results_csv, [row])
+            logger.info(f'Appended {test_set_name} results to {results_csv}')
 
     # results = []
 

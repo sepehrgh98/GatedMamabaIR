@@ -73,7 +73,7 @@ network_g:
 path:
   pretrain_network_g: ~
   strict_load_g: true
-  resume_state: /speed-scratch/se_gham/GatedMambaIR/experiments/GatedMambaIR_SR_x2/training_states/340000.state
+  resume_state: /speed-scratch/se_gham/GatedMambaIR/experiments/GatedMambaIR_SR_x2/training_states/464000.state
 
 # training settings
 train:

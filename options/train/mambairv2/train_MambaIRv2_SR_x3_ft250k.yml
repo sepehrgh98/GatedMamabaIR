@@ -1,0 +1,111 @@
+# x3 fine-tune from the x2 500k weights (MambaIRv2_SR_x2_500k), as MambaIRv2 does for x3/x4, same schedule as the paper
+# (250k, lr 1e-4, milestones 125k/200k/225k/237.5k). batch 2 (V100).
+# Same recipe for MambaIRv2 and GatedMambaIR lean.
+name: MambaIRv2_SR_x3_ft250k
+model_type: MambaIRv2Model
+scale: 3
+num_gpu: 1
+manual_seed: 10
+
+# dataset and data loader settings
+datasets:
+  train:
+    task: SR
+    name: DF2K
+    type: PairedImageDataset
+    dataroot_gt: /speed-scratch/se_gham/GatedMambaIR/datasets/DF2K/DF2K/HR
+    dataroot_lq: /speed-scratch/se_gham/GatedMambaIR/datasets/DF2K/DF2K/LR_bicubic/X3
+    filename_tmpl: '{}x3'
+    io_backend:
+      type: disk
+
+    gt_size: 192
+    use_hflip: true
+    use_rot: true
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 4  # 8 crashed job 1401762 at 44k (DataLoader bus error, shared memory)
+    batch_size_per_gpu: 2  # V100 32GB
+    dataset_enlarge_ratio: 100
+    prefetch_mode: ~
+
+  val:
+    name: Set14
+    type: PairedImageDataset
+    dataroot_gt: /speed-scratch/se_gham/GatedMambaIR/datasets/SR/Set14/HR
+    dataroot_lq: /speed-scratch/se_gham/GatedMambaIR/datasets/SR/Set14/LR_bicubic/X3
+    filename_tmpl: '{}x3'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 3
+  in_chans: 3
+  img_size: 64
+  img_range: 1.
+  embed_dim: 174
+  d_state: 16
+  depths: [6, 6, 6, 6, 6, 6]
+  num_heads: [6, 6, 6, 6, 6, 6]
+  window_size: 16
+  inner_rank: 64
+  num_tokens: 128
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+  upsampler: 'pixelshuffle'
+  resi_connection: '1conv'
+
+# path
+path:
+  pretrain_network_g: /speed-scratch/se_gham/GatedMambaIR/experiments/MambaIRv2_SR_x2_500k/models/net_g_500000.pth
+  strict_load_g: false  # x2 upsampler weights have a different shape and are skipped
+  resume_state: ~
+
+# training settings
+train:
+  optim_g:
+    type: Adam
+    lr: !!float 1e-4
+    weight_decay: 0
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [125000, 200000, 225000, 237500]
+    gamma: 0.5
+
+  total_iter: 250000
+  warmup_iter: -1
+
+  # losses
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+# validation settings
+val:
+  val_freq: !!float 5e3
+  save_img: false
+
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 2
+      test_y_channel: true
+
+# logging settings
+logger:
+  print_freq: 100
+  save_checkpoint_freq: !!float 5e3
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
