@@ -264,6 +264,10 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 - **×3 (1437521):** 231k / 250k, done ~Oct 27 07:00. Ahead of MambaIRv2 ×3 at **42 of 46** same-step validation checkpoints (mean **+0.04 dB**); best 30.79 vs 30.75.
 - **×4 (1437522):** 234k / 250k, done ~Oct 27 05:30. Ahead at **44 of 46** (mean **+0.05 dB**); best 29.00 vs 28.96.
 - The 7-day limit is Oct 28 23:39, so they will not be cut off. Tests 1437525 / 1437526 start automatically.
+- Curves (validation up to 235k; right panel fills in after the tests, rerun `tests/plot_curves.py --scale 3` / `--scale 4`): [x3_curves.png](x3_curves.png), [x4_curves.png](x4_curves.png).
+
+![x3 curves](x3_curves.png)
+![x4 curves](x4_curves.png)
 
 ## Running / queued now (2026-10-26)
 

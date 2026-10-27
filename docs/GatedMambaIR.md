@@ -192,7 +192,7 @@ python basicsr/tools/import_test_log.py results/test_X/test_*.log --tag some-lab
 ```
 
 - **Keys:** experiments are keyed as `name@iter`; if a checkpoint is tested twice, the newest row wins.
-- **Curves:** training curves are in `tb_logger/`. `tests/plot_500k_curves.py` and `tests/plot_ablation_curves.py` turn them into the PNGs in this folder.
+- **Curves:** training curves are in `tb_logger/`. `tests/plot_curves.py --scale 2|3|4` and `tests/plot_ablation_curves.py` turn them into the PNGs in this folder.
 
 ## Next steps
 
