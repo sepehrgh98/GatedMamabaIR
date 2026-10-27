@@ -1,16 +1,17 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-16 23:50 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-10-26 22:00 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
-- **The size-matched "lean" GatedMambaIR (25.1M params) beats MambaIRv2 (22.9M) on all five ×2 benchmarks** after the same 50k-step training:
-  - **+0.17 dB on Urban100**
-  - **+0.12 dB on Manga109**
-  - +0.03 to +0.04 dB on Set5, Set14 and B100
-- That is now the main candidate. Its **full 500k run** is queued next to the MambaIRv2 500k baseline (same recipe).
-- The delta erase itself is confirmed: +0.32 dB over GLA on Urban100.
-- Per-channel forgetting on the *big* model hurt. On the lean model it is part of the winning combination, so a check run (lean without it) is queued to tell which change matters.
+- **Final ×2 result (500k, same recipe): lean GatedMambaIR (25.1M) beats MambaIRv2 (22.9M) on all five benchmarks** (section 18):
+  - **+0.16 dB on Urban100** (33.93 vs 33.77)
+  - **+0.13 dB on Set14** (34.57 vs 34.44)
+  - +0.01 to +0.04 dB on Set5, B100 and Manga109
+- During training, lean was ahead at **75 of 81** same-step Set14 checkpoints since 100k (mean **+0.11 dB**). Curves: [500k_curves.png](500k_curves.png).
+- The same win already showed after 50k steps (+0.17 Urban100, +0.12 Manga109), so the gain holds through full training.
+- **×3 / ×4 lean fine-tunes** finish ~Oct 27 morning. Lean is ahead of MambaIRv2 in validation at 42 of 46 (×3) and 44 of 46 (×4) checkpoints so far.
+- **Where the gain comes from (ablations, section 11):** the lean design itself (per-channel-gated linear-attention memory in place of the Mamba scan). The delta erase is not needed: lean without it (GLA) ties lean.
 
 ## What we did
 
@@ -225,17 +226,55 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 - Lean still leads MambaIRv2 on Set14: **37 of 40** same-step checkpoints since 100k, mean **+0.12 dB**.
 - **Plan (user, 2026-10-16): no deadline, do it properly.** Lean ×3 / ×4 fine-tune from the final ×2 500k model (same as MambaIRv2). A shortcut from the 300k checkpoint was considered and dropped.
 
-## Running / queued now (2026-10-16)
+### 17. Lean ×2 500k progress (2026-10-18)
+
+- **Lean ×2 resume (1450198)** is healthy: **375k / 500k**, ~2.13 s per step on speed-43, no errors. **Done ~Oct 22 00:00.**
+- **Set14, 300k–375k** (same step, lean minus MambaIRv2):
+
+| Step | 300k | 310k | 320k | 330k | 340k | 350k | 360k | 370k | 375k |
+|---|---|---|---|---|---|---|---|---|---|
+| Lean | 34.32 | 34.35 | 34.30 | 34.35 | 34.33 | **34.42** | 34.37 | 34.34 | 34.25 |
+| MambaIRv2 | 34.15 | 34.22 | 34.22 | 34.36 | 34.32 | 34.14 | 34.21 | 34.18 | 34.18 |
+| Gap | +0.17 | +0.13 | +0.08 | −0.01 | +0.01 | +0.28 | +0.17 | +0.15 | +0.07 |
+
+- Lean is ahead at **15 of 16** checkpoints between 300k and 375k. Overall since 100k: **52 of 56**, mean **+0.11 dB**.
+- Lean's best so far is 34.42 (350k). MambaIRv2's best is 34.50 (470k), but that came *after* its late lr drops; lean has not had those yet. The fair comparison is the final 500k test on all 5 sets (job 1433568).
+
+### 18. Lean ×2 500k final: lean wins on all 5 sets (2026-10-22)
+
+![500k curves](500k_curves.png)
+
+- **Training finished** (1450198) on Oct 21 at 500k; **test 1433568** finished Oct 22.
+
+| ×2, PSNR / SSIM | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 (22.9M), our recipe | 38.46 / 0.9623 | 34.44 / 0.9250 | 32.48 / 0.9034 | 33.77 / 0.9420 | 39.90 / 0.9797 |
+| **Lean GatedMambaIR (25.1M)** | **38.47 / 0.9623** | **34.57 / 0.9256** | **32.51 / 0.9039** | **33.93 / 0.9430** | **39.94 / 0.9798** |
+| Gain (PSNR) | +0.01 | +0.13 | +0.03 | +0.16 | +0.04 |
+| MambaIRv2 official (batch 32, 8 GPUs), reference only | 38.65 | 34.87 | 32.62 | 34.48 | 40.42 |
+
+- **Largest gain on Urban100** (+0.16), the set with the most long-range repeated structure (buildings, windows). This fits the idea of a better long-range memory.
+- **The late lr drops did not close the gap:** after 375k, lean was ahead at 24 of 26 Set14 checkpoints. Lean's best Set14 value is 34.58 (445k), MambaIRv2's is 34.50 (470k).
+- SSIM is equal or better on every set.
+- **Agreed plan condition met** (section "Next steps"): lean wins at 500k, so the follow-ups go ahead. ×3 / ×4 are already running.
+
+### 19. Lean ×3 / ×4 fine-tune progress (2026-10-26)
+
+- Both started Oct 21 23:39 on speed-25 (V100), ~1.8 s per step, no errors. (The `expandable_segments` traceback near the top of each log is a harmless check before training starts.)
+- **×3 (1437521):** 231k / 250k, done ~Oct 27 07:00. Ahead of MambaIRv2 ×3 at **42 of 46** same-step validation checkpoints (mean **+0.04 dB**); best 30.79 vs 30.75.
+- **×4 (1437522):** 234k / 250k, done ~Oct 27 05:30. Ahead at **44 of 46** (mean **+0.05 dB**); best 29.00 vs 28.96.
+- The 7-day limit is Oct 28 23:39, so they will not be cut off. Tests 1437525 / 1437526 start automatically.
+
+## Running / queued now (2026-10-26)
 
 | Job | What | Status |
 |---|---|---|
-| 1450198 | **Lean ×2 500k** (resume from 275k) | running, ~300k, done ~Oct 21–22 |
-| 1433568 | Test of lean ×2 500k, all 5 sets | after 1450198 |
-| 1437521 / 1437522 | **Lean ×3 / ×4 fine-tune 250k from ×2 500k** | start after 1450198 (~Oct 22); ~5.4 days each → done ~Oct 28 |
-| 1437525 / 1437526 | Tests of the from-500k ×3 / ×4 | after their fine-tunes |
+| 1437521 / 1437522 | **Lean ×3 / ×4 fine-tune 250k from ×2 500k** | running, **231k / 234k**, done ~Oct 27 07:00 / 05:30 |
+| 1437525 / 1437526 | Tests of lean ×3 / ×4, all 5 sets | after their fine-tunes (~Oct 27 morning) |
 
 ## Finished since last report
 
+- **Lean ×2 500k:** training 1450198 (resume from 275k, done Oct 21) and test 1433568 (Oct 22). Results in section 18.
 - **MambaIRv2:** ×2 500k (1410815, test 1433380), ×3/×4 100k (1433564/5, tests 1433569/70), ×3/×4 250k (1437519/20, tests 1437523/24).
 - **Ablations:** lean+per-head (1410817), exact size k30 (1410869), lean+GLA (1424853). Results in sections 9 and 11.
 - **Lean 500k first part:** 1410816 timed out at ~280k (7-day limit); 1424381 cancelled (broken node).
@@ -249,13 +288,13 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 
 **Agreed plan (2026-10-02):** the two 500k runs decide everything. If lean GatedMambaIR beats MambaIRv2 at 500k, we do the follow-ups below.
 
-1. **Now (queued):** MambaIRv2 500k (1410815) and lean GatedMambaIR 500k (1410816), same recipe. Plus two short 50k checks: per-head gate (1410817) and exact size 22.9M (1410869).
-2. **If lean wins at 500k** (per-head and exact-size ablations are already done, see section 9):
-   - **×3 and ×4:** fine-tune both models from their ×2 weights (as MambaIRv2 does). Test all 5 sets.
+1. ~~Both 500k runs~~ **Done: lean wins on all 5 ×2 sets (section 18).**
+2. **Lean won at 500k, so now:** (per-head and exact-size ablations are already done, see section 9):
+   - **×3 and ×4:** MambaIRv2 done (section 16); lean finishing ~Oct 27 (section 19).
    - **Ablations** (50k each, same recipe), each removing one piece of the lean model:
-     - lean **without the delta erase** (GLA): proves the gain comes from the idea,
-     - lean with **per-head** forgetting: already queued (1410817),
-     - **exact size** 22.9M: already queued (1410869),
+     - lean **without the delta erase** (GLA): done, ties lean (section 11),
+     - lean with **per-head** forgetting: done (section 9),
+     - **exact size** 22.9M: done, ties MambaIRv2 (section 9),
      - optionally: no prompt, different chunk size.
    - **Speed and FLOPs** report (params, FLOPs, inference time) against MambaIRv2.
    - **Novelty check:** search for prior "delta rule / Gated DeltaNet for super-resolution" work.
