@@ -104,13 +104,14 @@ def scan_of(ssm):
     return ssm.gated_scan if hasattr(ssm, 'gated_scan') else ssm.selectiveScan
 
 
-def make_probed_forward(ssm, queries, n_probe, jac, record):
+def make_probed_forward(ssm, queries, n_probe, jac, record, probe_batch=8):
     """ASSM.forward / GSSM.forward (same code in both archs), plus the Jacobian probe around the scan.
 
     queries: flat token indices (row * W + col on the padded grid). Fills record with
     heat [Q, HW] (image order), group [HW] (route index per token), rank [HW] (position in the scan).
     """
     def forward(x, x_size, token):
+        nonlocal probe_batch  # halved on OOM, and kept for later queries / calls
         B, n, C = x.shape
         H, W = x_size
         full_embedding = ssm.embeddingB.weight @ token.weight
@@ -137,24 +138,41 @@ def make_probed_forward(ssm, queries, n_probe, jac, record):
         assert B == 1
         rev = x_sort_indices_reverse[0]  # image index -> scan position
         heats = []
+        sx_all, p_all = semantic_x.detach().float(), prompt.detach().float()
         with torch.enable_grad():
-            sx = semantic_x.detach().float().requires_grad_(True)
-            y_probe = scan_of(ssm)(sx, prompt.detach().float())  # [1, L, C]
             for qi, q in enumerate(queries):
-                o_q = y_probe[0, rev[q]]
+                t = int(rev[q])  # the scan is causal: o_q only depends on scan positions <= t, so cut there
+                h = torch.zeros(sx_all.shape[1], device=sx_all.device)
                 if jac == 'sum':
-                    g, = torch.autograd.grad(o_q.sum(), sx, retain_graph=True)
-                    h = g[0].abs().sum(-1)
+                    sx = sx_all[:, :t + 1].clone().requires_grad_(True)
+                    o_q = scan_of(ssm)(sx, p_all[:, :t + 1])[0, t]
+                    g, = torch.autograd.grad(o_q.sum(), sx)
+                    h[:t + 1] = g[0].abs().sum(-1)
                 else:  # Frobenius norm of each Jacobian block, Hutchinson estimate
-                    gen = torch.Generator(device=o_q.device).manual_seed(qi)
-                    h = torch.zeros(sx.shape[1], device=sx.device)
-                    for _ in range(n_probe):
-                        r = torch.randn(o_q.shape, device=o_q.device, generator=gen)
-                        g, = torch.autograd.grad((o_q * r).sum(), sx, retain_graph=True)
-                        h += g[0].pow(2).sum(-1)
+                    gen = torch.Generator(device=sx_all.device).manual_seed(qi)
+                    r_all = torch.randn((n_probe, sx_all.shape[-1]), device=sx_all.device, generator=gen)
+                    # several probes at once: copies of the sequence in the batch dim, one probe vector each
+                    i = 0
+                    while i < n_probe:
+                        r = r_all[i:i + probe_batch]
+                        P = r.shape[0]
+                        try:
+                            sx = sx_all[:, :t + 1].expand(P, -1, -1).contiguous().requires_grad_(True)
+                            o_q = scan_of(ssm)(sx, p_all[:, :t + 1].expand(P, -1, -1).contiguous())[:, t]
+                            g, = torch.autograd.grad((o_q * r).sum(), sx)
+                        except torch.cuda.OutOfMemoryError:
+                            if probe_batch == 1:
+                                raise
+                            sx = o_q = g = None
+                            torch.cuda.empty_cache()
+                            probe_batch //= 2
+                            print(f'OOM: probe_batch -> {probe_batch}')
+                            continue
+                        h[:t + 1] += g.pow(2).sum((0, 2))
+                        del sx, o_q, g
+                        i += P
                     h = (h / n_probe).sqrt()
                 heats.append(h[rev].detach().cpu())  # back to image order
-            del y_probe, sx
         record['heat'] = torch.stack(heats).numpy()
         record['group'] = detached_index[0].cpu().numpy()
         record['rank'] = rev.cpu().numpy()
@@ -167,7 +185,7 @@ def make_probed_forward(ssm, queries, n_probe, jac, record):
 
 
 @torch.no_grad()
-def probe_model(net, img, layers, queries_rc, n_probe, jac, route, seed):
+def probe_model(net, img, layers, queries_rc, n_probe, jac, route, seed, probe_batch=8):
     """img: [1,3,h,w] in [0,1]. Returns {layer: record} with maps cropped to h x w."""
     h0, w0 = img.shape[-2:]
     ws = net.window_size
@@ -177,7 +195,7 @@ def probe_model(net, img, layers, queries_rc, n_probe, jac, route, seed):
     for g, l in layers:
         ssm = get_ssm(net, g, l)
         records[(g, l)] = {}
-        ssm.forward = make_probed_forward(ssm, queries, n_probe, jac, records[(g, l)])
+        ssm.forward = make_probed_forward(ssm, queries, n_probe, jac, records[(g, l)], probe_batch)
     torch.manual_seed(seed)
     try:
         with route_mode(route):
@@ -293,6 +311,7 @@ def parse_args():
     p.add_argument('--jac', choices=['frob', 'sum'], default='frob',
                    help='frob: ||J_qi||_F via random probes; sum: |grad of sum_c o_q[c]| summed over channels')
     p.add_argument('--n_probe', type=int, default=16, help='random probes per query for --jac frob')
+    p.add_argument('--probe_batch', type=int, default=8, help='probes run together in one scan pass (lower if OOM)')
     p.add_argument('--route', choices=['argmax', 'gumbel'], default='argmax',
                    help='argmax: deterministic routing; gumbel: as in the test script (seeded)')
     p.add_argument('--seed', type=int, default=0)
@@ -333,7 +352,7 @@ def main():
             assert 0 <= r < h and 0 <= c < w, f'query {(r, c)} outside image {h}x{w}'
         img = torch.from_numpy(rgb).permute(2, 0, 1)[None].to(args.device)
 
-        recs = [probe_model(net, img, layers, queries, args.n_probe, args.jac, args.route, args.seed)
+        recs = [probe_model(net, img, layers, queries, args.n_probe, args.jac, args.route, args.seed, args.probe_batch)
                 for net in nets]
         print(f'{name}: {h}x{w}, {len(queries)} queries, layers {args.layers}')
 
