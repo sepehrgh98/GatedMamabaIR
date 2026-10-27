@@ -1,163 +1,203 @@
 # GatedMambaIR: Idea, Method & Experiments
 
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-26. Day-by-day log: [STATUS.md](STATUS.md). All test scores: [results.csv](results.csv)._
 
 ## Overview
 
-GatedMambaIR is an image super-resolution model that replaces MambaIRv2's selective scan with a gated delta-style linear-attention scan. The ×2 model trained to 464k of its 500k iterations, and it trails MambaIRv2-Base on all five benchmarks by 0.25 to 1.49 dB PSNR. The ×3 and ×4 runs finished but were never tested, and their checkpoints are now missing. The largest gap is on Urban100. A code review points to a bug in the chunked scan, not to the idea itself.
+GatedMambaIR is an image super-resolution model that replaces MambaIRv2's Mamba selective scan with a **gated linear-attention memory with per-channel forgetting**.
+
+- **Main ×2 result.** After the same 500k-step training, the lean model (25.1M parameters) beats MambaIRv2 (22.9M) on all five benchmarks. The gains are +0.16 dB on Urban100, +0.13 dB on Set14 and +0.01 to +0.04 dB on the rest.
+- **×3 / ×4.** These fine-tunes finish on 2026-10-27, and validation points the same way.
+- **What the ablations show.** The gain comes from the lean scan block, from giving its memory enough key channels, and from per-channel forgetting. The delta-rule erase, the starting idea, is not needed in the final model.
 
 ## Idea and motivation
 
-The idea is to give MambaIRv2's long-range branch a better memory by swapping the Mamba selective scan for a gated delta-rule scan, as in Gated DeltaNet.
+- **Baseline.** MambaIRv2 combines window attention (local detail) with an attentive state-space block. That block assigns each pixel one of 128 learned semantic tokens and sorts pixels so similar ones sit next to each other. It then runs a one-directional Mamba scan over the sorted sequence.
+- **Limitation targeted.** The Mamba scan keeps a small vector state per channel (d_state 16). Over long sequences, such as a 200×200 test tile (40,000 tokens), it can hold little about patterns seen far back.
+- **Proposal.** Replace it with a matrix-valued memory `S` (value × key), as in linear attention and Gated DeltaNet. Each token writes the association of its value with its key, and later tokens read with a query.
+  - A **decay gate α** controls forgetting.
+  - A **write gate β** controls how strongly each token is stored.
+  - Optionally, the **delta rule** first erases what `S` already predicts for the key, so repeated structure is stored once.
+- **Expected gain.** Better recall of repeated patterns that are far apart in the image, which should show most on Urban100 and Manga109. The final ×2 results show exactly that pattern.
 
-- **Baseline.** MambaIRv2 combines window attention (for local detail) with an attentive state-space block. That block assigns each pixel to one of 128 learned semantic tokens and sorts pixels so similar ones sit next to each other. It then runs a one-directional Mamba scan over the sorted sequence.
-- **Limitation targeted.** A Mamba scan keeps a compressed state that can only decay and add. It cannot overwrite a stale association, so the state fills up over long sequences such as a 200×200 test tile (40,000 tokens).
-- **Proposal.** A gated delta scan keeps a matrix-valued memory `S` (value × key, per head). A decay gate α controls forgetting and a write gate β controls how strongly each token is stored. Before writing a new value, the delta rule also erases what `S` already predicts for that key. Repeated structure is then stored once instead of piling up.
-- **Expected gain.** Better recall of repeated patterns that are far apart in the image, which should show most on Urban100 and Manga109.
+## Method
 
-## Methodology
-
-GatedMambaIR keeps the full MambaIRv2 network and changes only the state-space block: `ASSM` becomes `GSSM` (`basicsr/archs/gatedmambair_arch.py`), and its selective scan becomes `GatedDeltaScan`.
+GatedMambaIR keeps the full MambaIRv2 network and changes only the state-space block: `ASSM` becomes `GSSM` ([`basicsr/archs/gatedmambair_arch.py`](../basicsr/archs/gatedmambair_arch.py)), and its selective scan becomes `GatedDeltaScan`.
 
 **Network.** A 3×3 conv embeds the image to 174 channels, followed by six groups of six `AttentiveLayer`s and a pixel-shuffle upsampler. Each layer has two halves: shifted-window attention plus a ConvFFN, then GSSM plus a second ConvFFN.
 
-**GSSM block.**
+**GSSM block** (lean version):
 
 ```
 Input tokens ──► Conv 1x1 + CPE gate ──► Semantic sort ──► Gated scan ──► Norm, project, unsort
  (B, HW, 174)     (174 → 348)              ▲ index          ▲ prompt       (348 → 174)
-      │                                    │                │
-      └──────────► Router (pick 1 of 128) ─┴──► Prompt (token embedding, 16 → 348)
+      │                                    │                │ (16-dim, into q, α, β)
+      └──────────► Router (pick 1 of 128) ─┴──► Prompt (token embedding)
 ```
 
-A router picks one of 128 semantic tokens for each pixel with a hard Gumbel-softmax. Pixels are sorted by that index so that similar content becomes neighbouring tokens. The scan runs over the sorted sequence and the result is unsorted afterwards. The chosen token's embedding becomes a prompt: it is projected from 16 to 348 channels and added to the q, k, v, α and β projections.
+A router picks one of 128 semantic tokens for each pixel with a hard Gumbel-softmax. Pixels are sorted by that index, so similar content becomes neighbouring tokens. The scan runs over the sorted sequence and the result is unsorted afterwards. The chosen token's 16-dim embedding is a prompt that is added to the query and to both gates.
 
-**Scan dimensions.** The hidden width is 348. `make_multihead_dims` produces 5 heads, each with 17 key channels and 69 value channels. q and k are L2-normalised. The decay gate is α = sigmoid(a) and the write gate is β = sigmoid(b).
+**Scan** (`GatedDeltaScan`, lean, channel gate). It works on the 348-channel sorted sequence `x`:
 
-**Target recurrence (Gated DeltaNet).**
+- **Projections.** Query and key are `q = W_q x + P_q p` and `k = W_k x`, both L2-normalised, with **1 head × 87 key channels**.
+- **Value.** `v = x` (lean: no value projection, 348 value channels).
+- **Forgetting gate.** log α = −sigmoid(W_a x + P_a p), one value per key channel, bounded to [−1, 0].
+- **Write gate.** β = sigmoid(W_b x + P_b p), one per head.
+
+Recurrence, with `S` of shape value × key:
 
 $$
-S_t = \alpha_t \, S_{t-1} \left(I - \beta_t k_t k_t^\top\right) + \beta_t v_t k_t^\top, \qquad o_t = S_t q_t
+S_t = S_{t-1}\,\mathrm{diag}(\alpha_t)\,\big(I - \beta_t k_t k_t^\top\big) + \beta_t v_t k_t^\top, \qquad o_t = S_t q_t
 $$
 
-**Implemented recurrence** (`basicsr/archs/chunk.py`, `chunk_gated_delta_fullrank`). The sequence is split into chunks of T = 256 tokens, and γ is the running product of α within a chunk. Each chunk reads only the state left by earlier chunks, then writes its own tokens:
+- With `use_delta: false` the erase factor `(I − β k kᵀ)` is dropped. That gives gated linear attention (GLA).
+- The output is `o_t + D ⊙ x_t`, with a learned skip `D` (as Mamba's D).
+- GSSM's own LayerNorm and 348 → 174 projection follow.
 
-$$
-O_c = (\gamma \odot Q_c)\, S_{c-1}^\top, \qquad S_c = \gamma_T S_{c-1} + \sum_{t \in c} \frac{\gamma_T}{\gamma_t} \beta_t v_t k_t^\top
-$$
+**Chunked kernel** (`chunk_gated_delta_rule` in [`basicsr/archs/chunk.py`](../basicsr/archs/chunk.py)). The sequence is split into chunks of 128 tokens. Each chunk's output is a read from the state left by earlier chunks plus causal attention inside the chunk.
 
-This is gated linear attention with a β scale. It has no erase term and no read inside the chunk (see Analysis).
+- **Decay in log space.** Decays are cumulated in log space and only exponentiated as differences ≤ 0, so nothing underflows. The bound log α ≥ −1 keeps the per-channel exponents finite, which is why the channel gate needs chunk ≤ 160.
+- **Delta rule.** The within-chunk dependency is solved with the WY representation (one unit-lower-triangular solve per chunk).
+- **Precision.** Everything is kept in fp32.
+- **Correctness check.** [`tests/test_gated_delta_scan.py`](../tests/test_gated_delta_scan.py) checks the kernel against a token-by-token recurrence: outputs, final state, gradients, strong decay, and lengths that are not a multiple of the chunk.
 
-**Output.** The scan returns `x + r · W_o LN(o)`, where `r` is a learned scalar initialised to 0. q, k, v and the state are cast to bf16.
+**Lean vs original block.** The first version (`lean: false`) was larger:
 
-**Low-rank variant** (`use_lowrank`, off in all runs). It stores the state as S ≈ U Wᵀ with rank 16, and a gate g = G(k) drives both the U and W updates.
+- 5 heads × 17 keys, with a value projection.
+- The prompt projected to 348 channels and added to q, k, v, α and β.
+- An inner LayerNorm and output projection.
+- A residual scaled by a learned scalar that starts at 0.
+
+That came to 39.4M parameters. The lean block removes all of these and stays close to MambaIRv2's size.
+
+**Config options** (`network_g`):
+
+| Option | Lean ×2 | Meaning |
+|---|---|---|
+| `lean` | `true` | lean block (above); `false` = original 39.4M block |
+| `gate` | `channel` | per-key-channel forgetting; `head` = one α per head |
+| `use_delta` | `true` | delta-rule erase; `false` = GLA |
+| `key_ratio`, `head_dim` | `0.25`, `87` | 87 key channels in 1 head |
+| `chunk_size` | `128` | must be ≤ 160 with the channel gate |
+| `use_prompt` | `true` | semantic-token prompt |
+| `use_lowrank` | `false` | legacy low-rank state, unused (it still lacks the within-chunk read) |
 
 ## Experimental setup
 
-All runs use MambaIRv2-Base's classic-SR recipe, with only the scan changed. Each ran on one A100 80 GB (SLURM `pt` partition).
+Both models use the same recipe at each stage, so differences come from the architecture only.
 
-| Setting | Value |
-| --- | --- |
-| Training data | DF2K (DIV2K + Flickr2K), bicubic LR |
-| Patch / batch | 128 px HR crop, batch 4, flips + rotations |
-| Optimiser | Adam, lr 2.5e-5, betas (0.9, 0.99), no weight decay |
-| Schedule | 500k iterations, lr halved at 250k, 400k, 450k, 475k |
-| Loss | L1 |
-| Network | embed 174, 6 groups × 6 layers, window 16, 128 semantic tokens, d_state 16, inner rank 64, MLP ratio 2 |
-| Scan | 5 heads, key 17 / value 69 per head, chunk 256, full-rank state, prompt on |
-| Parameters | 39.43M (×2), 39.61M (×3), 39.58M (×4) |
-| Speed | 1.25 to 1.70 s per iteration |
-| Validation | Set14 every 2k iterations |
-| Test | Set5, Set14, B100, Urban100, Manga109; PSNR / SSIM on Y, border cropped by scale |
-| Tiled inference | ~200 px LR tiles with 10% overlap (`GatedMambaIRModel.test`) |
+| Setting | ×2 main (500k) | ×3 / ×4 fine-tune | 50k ablations (×2) |
+|---|---|---|---|
+| Data | DF2K, bicubic LR | same | same |
+| Init | scratch | own ×2 500k weights (upsampler new) | scratch |
+| Steps | 500k | 250k | 50k |
+| lr / milestones | 2e-4; ×0.5 at 250k, 400k, 450k, 475k | 1e-4; ×0.5 at 125k, 200k, 225k, 237.5k | 2e-4; the 500k schedule ÷ 10 |
+| HR patch / batch | 128 / 4 | 192 (×3), 256 (×4) / 2 | 128 / 2 |
+| GPU | one A100 80GB | one V100 32GB | one V100 32GB |
+| Loss | L1 | L1 | L1 |
 
-Configs: `options/train/gatedmambair/`, `options/test/gatedmambair/`. The baseline is the official pretrained `experiments/pretrained_models/mambairv2_classicSR_Base_x2.pth`, run through the same test script. It was not retrained here.
+- **Same schedule as the paper.** The ×3 / ×4 fine-tune is the MambaIRv2 paper's own (init from ×2, half the lr and steps).
+- **Validation:** Set14 every 5k steps.
+- **Test:** Set5, Set14, B100, Urban100 and Manga109. PSNR / SSIM are on the Y channel, with the border cropped by the scale factor.
+- **Inference:** tiled, ~200 px LR tiles with overlap (`GatedMambaIRModel.test`).
+- **Baseline:** MambaIRv2-Base was **retrained with our recipe**. The official numbers use batch 32 on 8 GPUs and are shown only as a reference.
 
-## Results so far
+## Results
 
-At ×2, GatedMambaIR is 0.25 to 1.49 dB PSNR behind MambaIRv2-Base. The gap is largest on the two sets full of repeated structure.
+### ×2 (500k)
 
-| Test set | GatedMambaIR PSNR / SSIM | MambaIRv2-Base PSNR / SSIM | Δ PSNR (dB) |
-| --- | --- | --- | --- |
-| Set5 | 38.25 / 0.9615 | 38.65 / 0.9631 | −0.40 |
-| Set14 | 33.93 / 0.9212 | 34.87 / 0.9275 | −0.94 |
-| B100 | 32.37 / 0.9020 | 32.62 / 0.9052 | −0.25 |
-| Urban100 | 33.00 / 0.9360 | 34.48 / 0.9468 | **−1.49** |
-| Manga109 | 39.46 / 0.9788 | 40.42 / 0.9810 | −0.96 |
+![500k curves](500k_curves.png)
 
-Sources: `logs/GatedMamabIRv2_inf_892727.out` (GatedMambaIR, 464k iterations) and `logs/MamabIRv2_inf_891729.out` (MambaIRv2-Base).
+| ×2, PSNR / SSIM | Params | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| MambaIRv2, our recipe | 22.9M | 38.46 / 0.9623 | 34.44 / 0.9250 | 32.48 / 0.9034 | 33.77 / 0.9420 | 39.90 / 0.9797 |
+| **GatedMambaIR lean** | 25.1M | **38.47 / 0.9623** | **34.57 / 0.9256** | **32.51 / 0.9039** | **33.93 / 0.9430** | **39.94 / 0.9798** |
+| Gain (PSNR) | | +0.01 | +0.13 | +0.03 | +0.16 | +0.04 |
+| MambaIRv2 official (batch 32, 8 GPUs) | 22.9M | 38.65 / 0.9631 | 34.87 / 0.9275 | 32.62 / 0.9052 | 34.48 / 0.9468 | 40.42 / 0.9810 |
 
-GatedMambaIR is also about 2.4× slower at test time. Urban100 took 31 min against 13 min, and Manga109 took 44 min against 18 min. The Python loop over chunks is the likely cause.
+- **Largest gain on Urban100,** the set with the most long-range repeated structure.
+- **Lean led for most of training:** it was ahead at 75 of 81 same-step Set14 validation checkpoints after 100k (mean +0.11 dB).
+- **The late lr drops did not close the gap:** lean was ahead at 24 of 26 checkpoints after 375k.
 
-**Training runs**
+### ×3 / ×4 (250k fine-tune)
 
-| Run | Scale | Iterations | Best Set14 PSNR (val) | Status |
-| --- | --- | --- | --- | --- |
-| 820051 | ×2 | 464k of 500k | not in surviving logs | Crashed on resume (`expandable_segments` allocator error); tested at 464k |
-| 819138 | ×3 | 500k (resumed from 356k) | 30.59 dB @ 476k | Finished 2026-01-05; not tested; checkpoints missing |
-| 819139 | ×4 | 500k (resumed from 404k) | 28.80 dB @ 486k | Finished 2026-01-04; not tested; checkpoints missing |
+| PSNR | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 ×3, our recipe | 34.95 | 30.86 | 29.42 | 29.60 | 35.10 |
+| MambaIRv2 ×4, our recipe | 32.79 | 29.08 | 27.88 | 27.32 | 32.01 |
+| GatedMambaIR lean ×3 / ×4 | pending | | | | |
 
-The `models/` and `training_states/` folders for ×3 and ×4 are empty and were last modified on 2026-09-25. Logs from before the resumes are gone, so the early training curves are lost.
+The lean ×3 / ×4 fine-tunes finish on 2026-10-27, and their tests follow automatically. Lean is ahead in Set14 validation at the same step so far:
+
+- **×3:** 42 of 46 checkpoints (mean +0.04 dB).
+- **×4:** 44 of 46 checkpoints (mean +0.05 dB).
+
+## Ablations (×2, 50k steps)
+
+| Variant | Params | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| MambaIRv2 | 22.9M | 37.91 | 33.42 | 32.08 | 31.53 | 38.38 |
+| Original block, delta, head gate (5×17 keys) | 39.4M | 37.93 | 33.42 | 32.08 | 31.56 | 38.36 |
+| Original block, GLA (no erase) | 39.4M | 37.83 | 33.28 | 32.01 | 31.24 | 38.20 |
+| Original block, delta, bigger heads (2×87 keys) | 43.8M | 37.92 | 33.43 | 32.08 | 31.54 | 38.42 |
+| Original block, delta, channel gate | 41.4M | 37.74 | 33.21 | 31.95 | 31.05 | 38.06 |
+| **Lean, delta, channel gate, 87 keys** (main model) | 25.1M | **37.95** | **33.46** | **32.11** | 31.70 | **38.51** |
+| Lean, GLA (no erase), channel gate | 25.1M | 37.94 | 33.46 | 32.11 | **31.74** | 38.49 |
+| Lean, delta, head gate | 25.1M | 37.91 | 33.41 | 32.11 | 31.64 | 38.44 |
+| Lean, delta, channel gate, 30 keys (exact size) | 22.9M | 37.88 | 33.39 | 32.07 | 31.49 | 38.39 |
+
+Each row is a single run, so differences of a few hundredths of a dB are noise.
+
+**What they show**
+
+1. **The lean block is the main source of the gain.** All lean variants with 87 keys beat MambaIRv2 on Urban100 (+0.11 to +0.21) and Manga109. The original block only ties MambaIRv2 despite 72% more parameters. Two likely reasons:
+   - the lean scan is active from step 0 (the original started with its residual scaled to zero),
+   - the lean block has no redundant projections.
+2. **The memory needs enough keys.** 87 keys vs 30 keys gives +0.21 dB on Urban100. At exactly MambaIRv2's size (30 keys), the model only ties. So the honest claim is "better at +10% parameters".
+3. **Per-channel forgetting helps in the lean block.** It gives +0.06 to +0.07 dB on Urban100 / Manga109 over one gate per head. In the original block it hurt (−0.51 dB on Urban100), probably by interacting with the zero-initialised residual and extra projections.
+4. **The delta erase is not needed in the lean model.** GLA and delta are within ±0.04 dB. The erase mattered only in the original block (+0.32 dB on Urban100), where 5 heads × 17 keys made the memory small and crowded. With 87 keys and per-channel forgetting, there is room, so erasing adds little.
+
+**Framing.** The paper claim is "a gated linear-attention memory with per-channel forgetting beats Mamba's scan inside MambaIRv2". The delta rule is an option studied in the ablations, not the reason it wins.
+
+## History: the first version and the scan fix
+
+The first GatedMambaIR (trained until Jan 2026; ×2 reached 464k) trailed the official MambaIRv2-Base by 0.25 to 1.49 dB (Urban100 33.00 vs 34.48). A code review on 2026-09-27 found that the chunked scan, not the idea, was at fault:
+
+| Issue in the old `chunk_gated_delta_fullrank` | Effect |
+|---|---|
+| No within-chunk read; each token saw only earlier chunks | The first 256 tokens output zero, and every token missed its nearest semantic neighbours (they share its chunk after sorting) |
+| No erase term | It was GLA, not a delta rule, so the idea was never tested |
+| Decay product computed directly (0.5²⁵⁶ → 0 in fp32) | Wrong write weights |
+| State kept in bf16 | Rounding error over ~160 chunks per test tile |
+| `key_ratio` / `head_dim` ignored | Configs could not change the head size |
+
+All five were fixed in `chunk_gated_delta_rule`, which is the kernel described above. The old ×3 / ×4 checkpoints were lost in the September scratch purge, and the old ×2 checkpoint was trained with the buggy scan. So every number in this document comes from **fresh runs with the fixed scan**, and the baseline was retrained with the same recipe.
 
 ## Tracking experiments
 
-Every run of `basicsr/test.py` appends one row per test set to `docs/results.csv`. A row holds the name, model, scale, dataset, PSNR, SSIM, image count, runtime, checkpoint iteration and path, config, git commit plus a dirty flag, and a tag. To label a run, set `val.tag` in the test YAML. To write to a different file, set `val.results_csv`.
+Every run of `basicsr/test.py` appends one row per test set to `docs/results.csv`. Each row holds:
+
+- name, model, scale and dataset,
+- PSNR, SSIM, image count and runtime,
+- checkpoint iteration and path, and the config,
+- git commit plus a dirty flag, and a tag.
+
+Set `val.tag` in the test YAML to label a run, or `val.results_csv` to write to a different file.
 
 ```bash
-# compare experiments (stdlib only, runs on a login node)
 python basicsr/tools/compare_results.py --list
 python basicsr/tools/compare_results.py --scale 2 --metric both --baseline MambaIRv2
-python basicsr/tools/compare_results.py --scale 2 --baseline MambaIRv2 --markdown   # paste into this doc
-
-# import old test logs written before the tracker existed
-python basicsr/tools/import_test_log.py results/test_X/test_*.log --tag some-label
+python basicsr/tools/compare_results.py --scale 2 --baseline MambaIRv2 --markdown   # paste into docs
+python basicsr/tools/import_test_log.py results/test_X/test_*.log --tag some-label  # old logs
 ```
 
-Experiments are keyed as `name@iter`. If the same checkpoint is tested twice, the newest row wins. For training curves (loss, Set14 validation PSNR), run `tensorboard --logdir tb_logger`. The event files there still hold the early training history that the SLURM logs lost.
-
-## Analysis: why it trails MambaIRv2
-
-The likely main cause is an implementation bug: each token can read only earlier chunks, never its own. Semantic sorting puts a token's most similar pixels in the same chunk, so exactly those are hidden. This matches the gap being largest on Urban100 and Manga109.
-
-| # | Issue | Where | Effect |
-| --- | --- | --- | --- |
-| 1 | No within-chunk read: the output uses only the state `S` from earlier chunks | `chunk.py`, `chunk_gated_delta_fullrank` | The first 256 tokens output zero, and every token misses its nearest semantic neighbours |
-| 2 | No delta erase term (`−β S k kᵀ`) | same | It is gated linear attention, not a delta rule, so the core idea is untested |
-| 3 | Decay product underflows | `_compute_gamma` and the `γ_T / γ_t` scale | With α ≈ 0.5, 0.5²⁵⁶ rounds to 0 in fp32, so the write weights come out wrong |
-| 4 | State kept in bf16 | `GatedDeltaScan.forward` | Rounding error builds up over ~160 chunks per 200 px test tile |
-| 5 | Scan starts as an identity (`res_scale = 0`) and is followed by a second norm + projection | `GatedDeltaScan`, `GSSM` | Slower start, redundant layers |
-| 6 | Updating U and W separately does not give the gated update of U Wᵀ | `chunk_gated_delta_lowrank` | Only matters if the variant is used |
-| 7 | `key_ratio` / `head_dim` from the config are ignored (hardcoded 0.25 / 16) | `GSSM.__init__` | Configs cannot change head size |
-
-Caveats on the comparison:
-
-- The baseline uses official weights, while GatedMambaIR stopped at 464k of 500k iterations, before the last lr step at 475k.
-- Git reports missing objects (`unable to read tree 56ecb38…`), so history on NFS scratch is not reliable.
-
-## Scan fix (2026-09-27)
-
-`GatedDeltaScan` now calls `chunk_gated_delta_rule` (`basicsr/archs/chunk.py`), which fixes issues 1–4 and 7:
-
-- **Within-chunk read.** Each chunk's output = read from the state of earlier chunks + causal attention inside the chunk.
-- **Log-space decay.** The decay comes from `logsigmoid(a)` and is only exponentiated as differences `g_i − g_j ≤ 0`, so there is no underflow or 0/0.
-- **fp32.** q, k, v, the state and all accumulation stay in fp32; there is no bf16 anywhere in the scan.
-- **Delta rule.** `use_delta: true` gives the real Gated DeltaNet update, with the within-chunk dependency solved by the WY representation (one unit-lower-triangular solve per chunk). `use_delta: false` gives gated linear attention, which is the ablation.
-- **Chunk size.** `chunk_size` is now a network option (default 64); it was hardcoded to 256.
-- **Config options.** `key_ratio` / `head_dim` from the config are passed through.
-
-There are no new parameters, so old checkpoints still load. They were trained with the buggy scan, though, so they are at best a warm start. The low-rank variant (`use_lowrank`) is unchanged and still has issue 1.
-
-Tests:
-
-- `tests/test_gated_delta_scan.py` compares the chunked scan against a token-by-token fp32 recurrence (outputs, final state, gradients, strong decay, lengths that are not a multiple of the chunk). It also shows the old function's bug: the first chunk outputs exactly 0.
-- `tests/test_gatedmambair_model.py` builds the full network with both variants, runs forward/backward on an odd-sized input, and loads an old checkpoint with `strict=True`.
+- **Keys:** experiments are keyed as `name@iter`; if a checkpoint is tested twice, the newest row wins.
+- **Curves:** training curves are in `tb_logger/`. `tests/plot_500k_curves.py` and `tests/plot_ablation_curves.py` turn them into the PNGs in this folder.
 
 ## Next steps
 
-1. **Back up the repo.** Copy the working tree and `.git` off scratch. If a copy of the ×3/×4 checkpoints exists anywhere, recover it.
-2. **Write a reference test.** Compare the chunked scan against a naive token-by-token loop on random inputs, forward and backward. This proves issues 1 and 3 and guards every later fix.
-3. **Fix the scan.** Add the within-chunk term, compute the decay in log space, and keep the state in fp32.
-4. **Choose the rule.** Either keep gated linear attention and rename it, or add the delta erase using the chunked WY form. The `fla` library's `chunk_gated_delta_rule` kernel would also remove the Python loop.
-5. **Run a short ablation before full training.** Train fixed-scan GatedMambaIR at ×2 for ~50k iterations and compare Set14 and Urban100 against MambaIRv2 trained the same way. Then run the full 500k ×2 training.
-6. **Then train ×3 and ×4.** Fine-tune them from the ×2 weights, as MambaIRv2 does. Test all five sets and report parameters, FLOPs and runtime with `analysis/`.
-7. **Housekeeping.** Pass `key_ratio` / `head_dim` through `GSSM` and drop the unused `self.act`. Once the allocator error is understood, remove the empty `PYTORCH_CUDA_ALLOC_CONF` workaround in `train.sh`.
+1. **Test lean ×3 / ×4** (runs end 2026-10-27; tests are queued) and add them to the results table.
+2. **Measure efficiency** against MambaIRv2: parameters, FLOPs and inference time at the same tile size, with `analysis/`.
+3. **Novelty check:** prior work on linear-attention, GLA or Gated DeltaNet memories in image restoration.
+4. **Optional, for a stronger paper:** a lightweight version (~0.8M params) trained with the paper's exact recipe, compared directly with published numbers.
+5. **Optional ablations:** no prompt, and other chunk sizes.
