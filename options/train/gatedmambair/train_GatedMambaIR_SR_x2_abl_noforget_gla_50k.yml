@@ -1,0 +1,119 @@
+# DeltaSR ablation (docs/ABLATIONS.md). Table 2 exp1: no forgetting, accumulation (no replacement).
+# Copy of train_GatedMambaIR_SR_x2_lean_chgate_50k.yml (same data/schedule/seed); only the lines marked below differ.
+name: GatedMambaIR_SR_x2_abl_noforget_gla_50k
+model_type: GatedMambaIRModel
+scale: 2
+num_gpu: 1
+manual_seed: 10
+
+# dataset and data loader settings
+datasets:
+  train:
+    task: SR
+    name: DF2K
+    type: PairedImageDataset
+    dataroot_gt: /speed-scratch/se_gham/GatedMambaIR/datasets/DF2K/DF2K/HR
+    dataroot_lq: /speed-scratch/se_gham/GatedMambaIR/datasets/DF2K/DF2K/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+    gt_size: 128
+    use_hflip: true
+    use_rot: true
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 8
+    batch_size_per_gpu: 2  # 2 to fit a V100 32GB (~20GB); batch 4 needs the 80GB A100
+    dataset_enlarge_ratio: 100
+    prefetch_mode: ~
+
+  val:
+    name: Set14
+    type: PairedImageDataset
+    dataroot_gt: /speed-scratch/se_gham/GatedMambaIR/datasets/SR/Set14/HR
+    dataroot_lq: /speed-scratch/se_gham/GatedMambaIR/datasets/SR/Set14/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+network_g:
+  type: GatedMambaIR
+  upscale: 2
+  in_chans: 3
+  img_size: 64
+  img_range: 1.
+  embed_dim: 174
+  d_state: 16
+  depths: [6, 6, 6, 6, 6, 6]
+  num_heads: [6, 6, 6, 6, 6, 6]
+  window_size: 16
+  inner_rank: 64
+  num_tokens: 128
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+  upsampler: 'pixelshuffle'
+  resi_connection: '1conv'
+  key_ratio: 0.25
+  head_dim: 87  # 1 head x 87 keys
+  use_prompt: true
+  use_lowrank: false
+  rank: 16
+  use_delta: false  # accumulate (gated linear attention), no replacement
+  chunk_size: 128  # channel gate needs <= 160
+  gate: none  # ablation: no forgetting
+  lean: true  # size-matched: 25.1M params vs MambaIRv2-B 22.9M
+
+# path
+path:
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: ~
+
+# training settings
+train:
+  optim_g:
+    type: Adam
+    lr: !!float 2e-4
+    weight_decay: 0
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [25000, 40000, 45000, 47500]  # the 500k schedule scaled by 1/10
+    gamma: 0.5
+
+  total_iter: 50000
+  warmup_iter: -1
+
+  # losses
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+# validation settings
+val:
+  val_freq: !!float 5e3
+  save_img: false
+
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 2
+      test_y_channel: true
+
+# logging settings
+logger:
+  print_freq: 100
+  save_checkpoint_freq: !!float 5e3
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500

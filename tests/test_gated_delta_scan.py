@@ -147,6 +147,19 @@ def test_per_channel_with_equal_channels_is_per_head():
         assert max_rel_err(o_ch, o_head) < 1e-5 and max_rel_err(S_ch, S_head) < 1e-5
 
 
+def test_zero_decay_matches_recurrent():
+    """gate: none passes log_alpha = 0 (alpha = 1, never forget); the chunked form must stay exact and finite."""
+    for use_delta in (False, True):
+        for L, T in ((300, 128), (130, 64)):
+            q, k, v, la, b = make_inputs(L)
+            la = torch.zeros_like(la)
+            ref_o, ref_S = chunk.gated_delta_rule_recurrent(q, k, v, la, b, use_delta=use_delta)
+            o, S = chunk.chunk_gated_delta_rule(q, k, v, la, b, chunk_size=T, use_delta=use_delta)
+            assert torch.isfinite(o).all() and torch.isfinite(S).all(), (use_delta, L, T)
+            err_o, err_S = max_rel_err(o, ref_o), max_rel_err(S, ref_S)
+            assert err_o < 1e-4 and err_S < 1e-4, (use_delta, L, T, err_o, err_S)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

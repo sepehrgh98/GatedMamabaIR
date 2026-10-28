@@ -55,7 +55,9 @@ Message: giving MambaIRv2 the same parameter budget through a bigger state does 
 | Row | Model | Run | Status |
 |---|---|---|---|
 | 1 | MambaIRv2, d_state 16 (22.9M) | `test_MambaIRv2_SR_x2_50k` | existing |
-| 2 | MambaIRv2, d_state enlarged to match 25.1M (value chosen in step 2 from built-model param counts) | `MambaIRv2_SR_x2_abl_dstateN_50k` | **NEW** |
+| 2 | MambaIRv2, **d_state 72** (25,136,729 params vs DeltaSR 25,124,201, +0.05%) | `MambaIRv2_SR_x2_abl_dstate72_50k` | **NEW** |
+
+d_state choice: MambaIRv2 grows by exactly 39,888 params per unit of d_state (22,903,001 at 16). 72 is the closest match to DeltaSR (71 gives 25,096,841, −0.11%).
 | 3 | DeltaSR, d_s 30 (22.9M) | `test_GatedMambaIR_SR_x2_lean_k30_50k` | existing |
 | 4 | DeltaSR, d_s 87 (25.1M) | `test_GatedMambaIR_SR_x2_lean_chgate_50k` | existing |
 
@@ -86,24 +88,28 @@ Message: with P in the gate, forgetting follows image content (e.g. strong at bo
 
 **11 new training runs** (each with a test job):
 
-| # | Run | Changes vs `lean_chgate_50k` | Used in |
-|---|---|---|---|
-| 1 | `GatedMambaIR_SR_x2_abl_noforget_50k` | `gate: none` | Table 1 exp1, Table 2 exp2 |
-| 2 | `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | `gate: none`, `use_delta: false` | Table 2 exp1 |
-| 3 | `GatedMambaIR_SR_x2_abl_promptq_50k` | `prompt_gates: []` | Table 3 exp1, Fig. B |
-| 4 | `GatedMambaIR_SR_x2_abl_promptqa_50k` | `prompt_gates: [a]` | Table 3 exp2 |
-| 5 | `GatedMambaIR_SR_x2_abl_promptqb_50k` | `prompt_gates: [b]` | Table 3 exp3 |
-| 6 | `MambaIRv2_SR_x2_abl_dstateN_50k` | MambaIRv2 `d_state: N` | Table 4 row 2, Fig. A(a) |
-| 7 | `GatedMambaIR_SR_x2_abl_ds16_50k` | `key_ratio: 0.046`, `head_dim: 16` | Fig. A(a) |
-| 8 | `GatedMambaIR_SR_x2_abl_ds48_50k` | `key_ratio: 0.138`, `head_dim: 48` | Fig. A(a) |
-| 9 | `GatedMambaIR_SR_x2_abl_ds16_gla_50k` | d_s 16, `use_delta: false` | Fig. A(a) |
-| 10 | `GatedMambaIR_SR_x2_abl_ds30_gla_50k` | `key_ratio: 0.087`, `head_dim: 30`, `use_delta: false` | Fig. A(a) |
-| 11 | `GatedMambaIR_SR_x2_abl_ds48_gla_50k` | d_s 48, `use_delta: false` | Fig. A(a) |
+| # | Run | Changes vs `lean_chgate_50k` | Params | Used in |
+|---|---|---|---|---|
+| 1 | `GatedMambaIR_SR_x2_abl_noforget_50k` | `gate: none` | 23,981,021 | Table 1 exp1, Table 2 exp2 |
+| 2 | `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | `gate: none`, `use_delta: false` | 23,981,021 | Table 2 exp1 |
+| 3 | `GatedMambaIR_SR_x2_abl_promptq_50k` | `prompt_gates: []` | 25,073,513 | Table 3 exp1, Fig. B |
+| 4 | `GatedMambaIR_SR_x2_abl_promptqa_50k` | `prompt_gates: [a]` | 25,123,625 | Table 3 exp2 |
+| 5 | `GatedMambaIR_SR_x2_abl_promptqb_50k` | `prompt_gates: [b]` | 25,074,089 | Table 3 exp3 |
+| 6 | `MambaIRv2_SR_x2_abl_dstate72_50k` | MambaIRv2 `d_state: 72` | 25,136,729 | Table 4 row 2, Fig. A(a) |
+| 7 | `GatedMambaIR_SR_x2_abl_ds16_50k` | `key_ratio: 0.046`, `head_dim: 16` | 22,371,389 | Fig. A(a) |
+| 8 | `GatedMambaIR_SR_x2_abl_ds48_50k` | `key_ratio: 0.138`, `head_dim: 48` | 23,612,093 | Fig. A(a) |
+| 9 | `GatedMambaIR_SR_x2_abl_ds16_gla_50k` | d_s 16, `use_delta: false` | 22,371,389 | Fig. A(a) |
+| 10 | `GatedMambaIR_SR_x2_abl_ds30_gla_50k` | `key_ratio: 0.087`, `head_dim: 30`, `use_delta: false` | 22,914,197 | Fig. A(a) |
+| 11 | `GatedMambaIR_SR_x2_abl_ds48_gla_50k` | d_s 48, `use_delta: false` | 23,612,093 | Fig. A(a) |
+
+Reference sizes: DeltaSR (d_s 87) 25,124,201; DeltaSR d_s 30 22,914,197; MambaIRv2 (d_state 16) 22,903,001. Key counts checked from the built models (1 head; 16 / 30 / 48 / 87 keys). `gate: none` drops `a_proj` / `ap_proj` (−1.14M). The write rule (`use_delta`) does not change the size.
 
 **Code options** (in `basicsr/archs/gatedmambair_arch.py`, all defaulting to current behaviour so existing configs and checkpoints are unchanged):
 
 - `gate: none`: no forgetting (log α = 0); no `a_proj` / `ap_proj` parameters.
 - `prompt_gates` (default `['a', 'b']`): which of α / β also receive P. `[]` = P only in q.
-- A way to read the per-token log α of one layer in eval mode, for Fig. B.
+- `record_log_alpha` on a `GatedDeltaScan` (eval only): keeps that layer's log α in `last_log_alpha`, un-sorted by GSSM to image order as `[B, H, W, n_gate]`, for Fig. B.
 
-**Analysis scripts** (no training): `analysis/ablation_efficiency.py` (Table 4 columns, Fig. A(b)), `analysis/forget_map.py` (Fig. B).
+Tests: `tests/test_ablation_options.py` (existing 50k checkpoints give bit-identical outputs before/after the change; variants build, train and round-trip; the recorded map is in image order), `tests/test_gated_delta_scan.py` (adds a zero-decay case), `tests/check_ablation_variants.py` (GPU: a few training steps of every new config at the real size, finite gradients, peak memory).
+
+**Analysis scripts** (no training): `analysis/ablation_efficiency.py` (Table 4 columns, Fig. A(b)), `analysis/forget_map.py` (Fig. B). Launcher: `sbatch --gres=gpu:1 --constraint=Model-V100 analysis/gpu_job.sh <script> [args]`.

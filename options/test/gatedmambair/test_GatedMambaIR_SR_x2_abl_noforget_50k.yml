@@ -1,0 +1,103 @@
+# general settings
+name: test_GatedMambaIR_SR_x2_abl_noforget_50k
+model_type: GatedMambaIRModel
+scale: 2
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_1:  # the 1st test dataset
+    name: Set5
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set5/HR
+    dataroot_lq: ./datasets/SR/Set5/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_2:  # the 2nd test dataset
+    name: Set14
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set14/HR
+    dataroot_lq: ./datasets/SR/Set14/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_3:  # the 3rd test dataset
+    name: B100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/B100/HR
+    dataroot_lq: ./datasets/SR/B100/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_4:  # the 4th test dataset
+    name: Urban100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Urban100/HR
+    dataroot_lq: ./datasets/SR/Urban100/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_5:  # the 5th test dataset
+    name: Manga109
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Manga109/HR
+    dataroot_lq: ./datasets/SR/Manga109/LR_bicubic/X2
+    filename_tmpl: '{}_LRBI_x2'
+    io_backend:
+      type: disk
+
+
+
+network_g:
+  type: GatedMambaIR
+  upscale: 2
+  in_chans: 3
+  img_size: 64
+  img_range: 1.
+  embed_dim: 174
+  d_state: 16
+  depths: [6, 6, 6,6,6,6]
+  num_heads: [6,6,6,6,6,6]
+  window_size: 16
+  inner_rank: 64
+  num_tokens: 128
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+  upsampler: 'pixelshuffle'
+  resi_connection: '1conv'
+  key_ratio: 0.25
+  head_dim: 87
+  use_prompt: true
+  use_lowrank: false
+  rank: 16
+  use_delta: true
+  chunk_size: 128
+  gate: none  # ablation: no forgetting
+  lean: true
+
+
+# path
+path:
+  pretrain_network_g: /speed-scratch/se_gham/GatedMambaIR/experiments/GatedMambaIR_SR_x2_abl_noforget_50k/models/net_g_50000.pth
+  strict_load_g: true
+
+# validation settings
+val:
+  save_img: true
+  suffix: abl_noforget
+  tag: abl-noforget  # free-text label stored in docs/results.csv
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 2
+      test_y_channel: true
+    ssim:
+      type: calculate_ssim
+      crop_border: 2
+      test_y_channel: true

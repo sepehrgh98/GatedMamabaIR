@@ -258,6 +258,7 @@ class GSSM(nn.Module):
         chunk_size=64,
         gate='head',
         lean=False,
+        prompt_gates=('a', 'b'),
     ):
 
         super().__init__()
@@ -292,6 +293,7 @@ class GSSM(nn.Module):
             chunk_size=chunk_size,
             gate=gate,
             lean=lean,
+            prompt_gates=prompt_gates,
             d_state=d_state,
         )
 
@@ -348,6 +350,10 @@ class GSSM(nn.Module):
 
         semantic_x = semantic_neighbor(x, x_sort_indices)
         y = self.gated_scan(semantic_x, prompt)
+        if self.gated_scan.last_log_alpha is not None and self.gated_scan.record_log_alpha and not self.training:
+            # back to image order, as [B,H,W,n_gate] over the window-padded image
+            self.gated_scan.last_log_alpha = semantic_neighbor(
+                self.gated_scan.last_log_alpha, x_sort_indices_reverse).view(B, H, W, -1)
         y = self.out_proj(self.out_norm(y))
         x = semantic_neighbor(y, x_sort_indices_reverse)
 
@@ -367,18 +373,24 @@ class GatedDeltaScan(nn.Module):
         chunk_size=64,
         gate='head',
         lean=False,
+        prompt_gates=('a', 'b'),
         d_state=16,
     ):
         """gate: 'head' = one decay per head; 'channel' = one decay per key channel, bounded to
         log alpha in [-1, 0] so chunk_gated_delta_rule's exponents stay finite (needs chunk_size <= 160).
         lean: size-matched variant closer to MambaIRv2's scan: v = x (no v projection), the d_state prompt
         is added to q and the gates only, no inner norm/projection (GSSM already has one), Mamba-style D skip.
+        gate: 'none' = no forgetting (alpha = 1, log alpha = 0), no a_proj/ap_proj (ablation).
+        prompt_gates: which of alpha ('a') and beta ('b') also receive the prompt; q always does. [] = q only.
+        record_log_alpha: set True in eval to keep the last per-token log alpha in self.last_log_alpha, for the
+        forgetting maps. GSSM un-sorts it to image order as [B,H,W,n_gate] (H, W = window-padded LR size).
         """
         super().__init__()
         assert dk % num_heads == 0 and dv % num_heads == 0
         assert rank > 0
-        assert gate in ('head', 'channel'), gate
-        assert gate == 'head' or (not use_lowrank and chunk_size <= 160), 'channel gate: full-rank, chunk_size <= 160'
+        assert gate in ('head', 'channel', 'none'), gate
+        assert gate != 'channel' or (not use_lowrank and chunk_size <= 160), 'channel gate: full-rank, chunk_size <= 160'
+        assert set(prompt_gates) <= {'a', 'b'}, prompt_gates
         assert not lean or (dv == C and not use_lowrank), f'lean needs v = x: dv ({dv}) must equal C ({C})'
 
         self.C = C
@@ -395,6 +407,10 @@ class GatedDeltaScan(nn.Module):
         self.chunk_size = chunk_size
         self.gate = gate
         self.lean = lean
+        self.prompt_a = use_prompt and 'a' in prompt_gates and gate != 'none'
+        self.prompt_b = use_prompt and 'b' in prompt_gates
+        self.record_log_alpha = False
+        self.last_log_alpha = None
         n_gate = dk if gate == 'channel' else num_heads
 
 
@@ -403,7 +419,8 @@ class GatedDeltaScan(nn.Module):
         self.k_proj = nn.Linear(C, dk, bias=False)
         if not lean:
             self.v_proj = nn.Linear(C, dv, bias=False)
-        self.a_proj = nn.Linear(C, n_gate, bias=True)
+        if gate != 'none':
+            self.a_proj = nn.Linear(C, n_gate, bias=True)
         self.b_proj = nn.Linear(C, num_heads, bias=True)
 
         if use_prompt:
@@ -412,8 +429,10 @@ class GatedDeltaScan(nn.Module):
             if not lean:
                 self.kp_proj = nn.Linear(C, dk, bias=False)
                 self.vp_proj = nn.Linear(C, dv, bias=False)
-            self.ap_proj = nn.Linear(p_in, n_gate, bias=False)
-            self.bp_proj = nn.Linear(p_in, num_heads, bias=False)
+            if self.prompt_a:
+                self.ap_proj = nn.Linear(p_in, n_gate, bias=False)
+            if self.prompt_b:
+                self.bp_proj = nn.Linear(p_in, num_heads, bias=False)
 
 
     
@@ -440,7 +459,7 @@ class GatedDeltaScan(nn.Module):
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = x if self.lean else self.v_proj(x)
-        a = self.a_proj(x)
+        a = self.a_proj(x) if self.gate != 'none' else None
         b = self.b_proj(x)
 
         if self.use_prompt:
@@ -448,8 +467,10 @@ class GatedDeltaScan(nn.Module):
             if not self.lean:
                 k = k + self.kp_proj(prompt)
                 v = v + self.vp_proj(prompt)
-            a = a + self.ap_proj(prompt)
-            b = b + self.bp_proj(prompt)
+            if self.prompt_a:
+                a = a + self.ap_proj(prompt)
+            if self.prompt_b:
+                b = b + self.bp_proj(prompt)
 
         # ---- split heads: [B,H,L,D] ----
         q = l2norm(q.view(B, L, self.h, self.dk_h), dim=-1).transpose(1, 2)
@@ -457,8 +478,14 @@ class GatedDeltaScan(nn.Module):
         v = v.view(B, L, self.h, self.dv_h).transpose(1, 2)
         if self.gate == 'channel':
             log_alpha = -torch.sigmoid(a.float()).view(B, L, self.h, self.dk_h).transpose(1, 2)
-        else:
+        elif self.gate == 'head':
             log_alpha = F.logsigmoid(a.float()).transpose(1, 2)  # decay gate, kept in log space
+        else:
+            log_alpha = x.new_zeros(B, self.h, L, dtype=torch.float32)  # alpha = 1: never forget
+        if self.record_log_alpha and not self.training:
+            # [B,L,n_gate] in scan order; GSSM moves it back to image order
+            self.last_log_alpha = (log_alpha.transpose(1, 2).reshape(B, L, -1) if log_alpha.dim() == 4
+                                   else log_alpha.transpose(1, 2)).detach()
         beta = torch.sigmoid(b).transpose(1, 2)
 
         if not self.use_lowrank:
@@ -518,6 +545,7 @@ class AttentiveLayer(nn.Module):
                  chunk_size=64,
                  gate='head',
                  lean=False,
+                 prompt_gates=('a', 'b'),
                  ):
         super().__init__()
 
@@ -569,6 +597,7 @@ class AttentiveLayer(nn.Module):
             chunk_size=chunk_size,
             gate=gate,
             lean=lean,
+            prompt_gates=prompt_gates,
         )
 
         mlp_hidden_dim = int(dim * self.mlp_ratio)
@@ -660,6 +689,7 @@ class BasicBlock(nn.Module):
                  chunk_size=64,
                  gate='head',
                  lean=False,
+                 prompt_gates=('a', 'b'),
             ):
 
         super().__init__()
@@ -694,6 +724,7 @@ class BasicBlock(nn.Module):
                     chunk_size=chunk_size,
                     gate=gate,
                     lean=lean,
+                    prompt_gates=prompt_gates,
                 )
             )
 
@@ -744,6 +775,7 @@ class ASSB(nn.Module):
                  chunk_size=64,
                  gate='head',
                  lean=False,
+                 prompt_gates=('a', 'b'),
             ):
         super(ASSB, self).__init__()
 
@@ -781,6 +813,7 @@ class ASSB(nn.Module):
             chunk_size=chunk_size,
             gate=gate,
             lean=lean,
+            prompt_gates=prompt_gates,
         )
 
         if resi_connection == '1conv':
@@ -963,6 +996,7 @@ class GatedMambaIR(nn.Module):
                  chunk_size=64,
                  gate='head',
                  lean=False,
+                 prompt_gates=('a', 'b'),
                  **kwargs):
         super().__init__()
         num_in_ch = in_chans
@@ -1047,6 +1081,7 @@ class GatedMambaIR(nn.Module):
                 chunk_size=chunk_size,
                 gate=gate,
                 lean=lean,
+                prompt_gates=prompt_gates,
             )
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
