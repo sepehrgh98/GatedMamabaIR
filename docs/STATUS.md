@@ -1,6 +1,6 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-26 22:00 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-10-27 23:30 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
@@ -10,7 +10,10 @@ _Last updated: 2026-10-26 22:00 EDT. Method and background: [GatedMambaIR.md](Ga
   - +0.01 to +0.04 dB on Set5, B100 and Manga109
 - During training, lean was ahead at **75 of 81** same-step Set14 checkpoints since 100k (mean **+0.11 dB**). Curves: [500k_curves.png](500k_curves.png).
 - The same win already showed after 50k steps (+0.17 Urban100, +0.12 Manga109), so the gain holds through full training.
-- **×3 / ×4 lean fine-tunes** finish ~Oct 27 morning. Lean is ahead of MambaIRv2 in validation at 42 of 46 (×3) and 44 of 46 (×4) checkpoints so far.
+- **×3 and ×4 (250k fine-tunes, paper schedule): lean also wins on all five benchmarks at both scales** (section 20):
+  - **+0.17 dB on Urban100** at both ×3 (29.77 vs 29.60) and ×4 (27.49 vs 27.32)
+  - ×4 Manga109 +0.09; the other sets +0.01 to +0.05
+  - SSIM is higher on every set at both scales. Curves: [x3_curves.png](x3_curves.png), [x4_curves.png](x4_curves.png).
 - **Where the gain comes from (ablations, section 11):** the lean design itself (per-channel-gated linear-attention memory in place of the Mamba scan). The delta erase is not needed: lean without it (GLA) ties lean.
 
 ## What we did
@@ -264,20 +267,38 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 - **×3 (1437521):** 231k / 250k, done ~Oct 27 07:00. Ahead of MambaIRv2 ×3 at **42 of 46** same-step validation checkpoints (mean **+0.04 dB**); best 30.79 vs 30.75.
 - **×4 (1437522):** 234k / 250k, done ~Oct 27 05:30. Ahead at **44 of 46** (mean **+0.05 dB**); best 29.00 vs 28.96.
 - The 7-day limit is Oct 28 23:39, so they will not be cut off. Tests 1437525 / 1437526 start automatically.
-- Curves (validation up to 235k; right panel fills in after the tests, rerun `tests/plot_curves.py --scale 3` / `--scale 4`): [x3_curves.png](x3_curves.png), [x4_curves.png](x4_curves.png).
+- Final results and curves: section 20.
+
+### 20. Lean ×3 / ×4 final: lean wins on all 5 sets at both scales (2026-10-27)
+
+- **Training finished** Oct 27 (×4 1437522 at 05:34, ×3 1437521 at 07:13); **tests 1437526 / 1437525** finished 06:01 / 07:57.
+
+| ×3, PSNR / SSIM | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2, our recipe | 34.95 / 0.9316 | 30.86 / 0.8519 | 29.42 / 0.8136 | 29.60 / 0.8797 | 35.10 / 0.9530 |
+| **Lean GatedMambaIR** | **34.99 / 0.9320** | **30.87 / 0.8521** | **29.44 / 0.8140** | **29.77 / 0.8820** | **35.16 / 0.9534** |
+| Gain (PSNR) | +0.04 | +0.01 | +0.02 | +0.17 | +0.05 |
+
+| ×4, PSNR / SSIM | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2, our recipe | 32.79 / 0.9024 | 29.08 / 0.7933 | 27.88 / 0.7473 | 27.32 / 0.8217 | 32.01 / 0.9241 |
+| **Lean GatedMambaIR** | **32.83 / 0.9031** | **29.12 / 0.7937** | **27.90 / 0.7479** | **27.49 / 0.8253** | **32.10 / 0.9253** |
+| Gain (PSNR) | +0.05 | +0.04 | +0.02 | +0.17 | +0.09 |
+
+- **Same pattern as ×2:** the largest gain is on Urban100 (+0.16 at ×2, +0.17 at ×3 and ×4), the set with the most long-range repeated structure.
+- **Validation (Set14, same-step):** lean ahead at **46 of 50** checkpoints at ×3 (mean **+0.04 dB**) and **48 of 50** at ×4 (mean **+0.05 dB**). Best 30.79 vs 30.75 (×3), 29.00 vs 28.96 (×4).
+- So lean beats MambaIRv2 on **all 15 scale/set pairs** (×2, ×3, ×4 × 5 sets), PSNR and SSIM.
 
 ![x3 curves](x3_curves.png)
 ![x4 curves](x4_curves.png)
 
-## Running / queued now (2026-10-26)
+## Running / queued now (2026-10-27)
 
-| Job | What | Status |
-|---|---|---|
-| 1437521 / 1437522 | **Lean ×3 / ×4 fine-tune 250k from ×2 500k** | running, **231k / 234k**, done ~Oct 27 07:00 / 05:30 |
-| 1437525 / 1437526 | Tests of lean ×3 / ×4, all 5 sets | after their fine-tunes (~Oct 27 morning) |
+No GatedMambaIR training or test jobs are running. The ×2 / ×3 / ×4 comparison is complete. (The memory-heatmap analysis job 1530923 is separate.)
 
 ## Finished since last report
 
+- **Lean ×3 / ×4 250k fine-tunes:** training 1437521 / 1437522 and tests 1437525 / 1437526 (Oct 27). Results in section 20.
 - **Lean ×2 500k:** training 1450198 (resume from 275k, done Oct 21) and test 1433568 (Oct 22). Results in section 18.
 - **MambaIRv2:** ×2 500k (1410815, test 1433380), ×3/×4 100k (1433564/5, tests 1433569/70), ×3/×4 250k (1437519/20, tests 1437523/24).
 - **Ablations:** lean+per-head (1410817), exact size k30 (1410869), lean+GLA (1424853). Results in sections 9 and 11.
@@ -294,7 +315,7 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 
 1. ~~Both 500k runs~~ **Done: lean wins on all 5 ×2 sets (section 18).**
 2. **Lean won at 500k, so now:** (per-head and exact-size ablations are already done, see section 9):
-   - **×3 and ×4:** MambaIRv2 done (section 16); lean finishing ~Oct 27 (section 19).
+   - ~~**×3 and ×4**~~ **Done: lean wins on all 5 sets at both scales (section 20).**
    - **Ablations** (50k each, same recipe), each removing one piece of the lean model:
      - lean **without the delta erase** (GLA): done, ties lean (section 11),
      - lean with **per-head** forgetting: done (section 9),
