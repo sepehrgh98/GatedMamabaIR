@@ -8,7 +8,11 @@ GatedMambaIR keeps the whole [MambaIRv2](https://github.com/csguoh/MambaIR) netw
 
 ## Results
 
-Classic SR, ×2, PSNR (dB) / SSIM on the Y channel. Both models were trained with the **same recipe** (DF2K, 500k steps, batch 4, one A100).
+Classic SR, PSNR (dB) / SSIM on the Y channel. Both models use the **same recipe**: ×2 is trained on DF2K for 500k steps (batch 4, one A100). ×3 and ×4 are 250k-step fine-tunes from each model's own ×2 weights (the MambaIRv2 paper's schedule).
+
+**Lean GatedMambaIR beats MambaIRv2 on all five test sets at ×2, ×3 and ×4, in both PSNR and SSIM.**
+
+### ×2
 
 | Model | Params | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|---|
@@ -16,10 +20,26 @@ Classic SR, ×2, PSNR (dB) / SSIM on the Y channel. Both models were trained wit
 | **GatedMambaIR (lean)** | 25.1M | **38.47 / 0.9623** | **34.57 / 0.9256** | **32.51 / 0.9039** | **33.93 / 0.9430** | **39.94 / 0.9798** |
 | Gain (PSNR) | | +0.01 | +0.13 | +0.03 | +0.16 | +0.04 |
 
-- The largest gain is on **Urban100**, which has the most long-range repeated structure.
-- Lean is ahead at 75 of 81 same-step Set14 validation checkpoints after 100k steps.
-- The official MambaIRv2 numbers are higher (e.g. Urban100 34.48) because they use batch 32 on 8 GPUs. Here both models use the same smaller batch, so the comparison is like for like.
-- ×3 / ×4 (250k-step fine-tunes from the ×2 weights) are in progress.
+### ×3
+
+| Model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 (retrained, same recipe) | 34.95 / 0.9316 | 30.86 / 0.8519 | 29.42 / 0.8136 | 29.60 / 0.8797 | 35.10 / 0.9530 |
+| **GatedMambaIR (lean)** | **34.99 / 0.9320** | **30.87 / 0.8521** | **29.44 / 0.8140** | **29.77 / 0.8820** | **35.16 / 0.9534** |
+| Gain (PSNR) | +0.04 | +0.01 | +0.02 | +0.17 | +0.05 |
+
+### ×4
+
+| Model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 (retrained, same recipe) | 32.79 / 0.9024 | 29.08 / 0.7933 | 27.88 / 0.7473 | 27.32 / 0.8217 | 32.01 / 0.9241 |
+| **GatedMambaIR (lean)** | **32.83 / 0.9031** | **29.12 / 0.7937** | **27.90 / 0.7479** | **27.49 / 0.8253** | **32.10 / 0.9253** |
+| Gain (PSNR) | +0.05 | +0.04 | +0.02 | +0.17 | +0.09 |
+
+- The largest gain is on **Urban100** at every scale (+0.16 / +0.17 / +0.17 dB). It is the set with the most long-range repeated structure.
+- Set14 validation during training: lean is ahead at 75 of 81 same-step checkpoints after 100k steps at ×2, 46 of 50 at ×3 and 48 of 50 at ×4.
+- The official MambaIRv2 numbers are higher (e.g. ×2 Urban100 34.48) because they use batch 32 on 8 GPUs. Here both models use the same smaller batch, so the comparison is like for like.
+- Training curves: [×2](docs/500k_curves.png), [×3](docs/x3_curves.png), [×4](docs/x4_curves.png) (made by `tests/plot_curves.py --scale 2|3|4`).
 
 Every test score is logged in [`docs/results.csv`](docs/results.csv). The running experiment log is [`docs/STATUS.md`](docs/STATUS.md).
 
@@ -107,7 +127,7 @@ python basicsr/test.py -opt <test config>
 Compare models:
 
 ```bash
-python basicsr/tools/compare_results.py --scale 2 --baseline MambaIRv2
+python basicsr/tools/compare_results.py --scale 2 --baseline MambaIRv2   # or --scale 3 / 4
 ```
 
 Run the scan test (CPU, a few seconds):
