@@ -235,11 +235,15 @@ def concentration(heat, q, group, rank, local):
     }
 
 
-def display_map(heat, q, pct, gamma):
+def display_map(heat, q, pct, gamma, dilate=0):
     hm = heat.copy()
     hm[q[0], q[1]] = 0
     vmax = np.percentile(hm[hm > 0], pct) if (hm > 0).any() else 1.0
-    return np.clip(hm / max(vmax, 1e-12), 0, 1) ** gamma
+    hm = np.clip(hm / max(vmax, 1e-12), 0, 1)
+    if dilate > 0:  # grey dilation (max filter) so isolated dots stay visible at print size
+        hm = cv2.dilate(hm.astype(np.float32), np.ones((2 * dilate + 1, 2 * dilate + 1), np.uint8))
+        hm[q[0], q[1]] = 0
+    return hm ** gamma
 
 
 def overlay(ax, gray, hm, q, alpha, cmap):
@@ -318,6 +322,7 @@ def parse_args():
     p.add_argument('--local', type=int, default=8, help='half size of the "local" window for far_mass')
     p.add_argument('--pct', type=float, default=99.5, help='display: normalise each map by this percentile')
     p.add_argument('--gamma', type=float, default=0.5, help='display: power applied after normalising')
+    p.add_argument('--dilate', type=int, default=0, help='display: max-filter radius in pixels (0 = off)')
     p.add_argument('--alpha', type=float, default=0.85, help='display: max heatmap opacity')
     p.add_argument('--cmap', default='jet')
     p.add_argument('--grid_step', type=int, default=20)
@@ -371,14 +376,14 @@ def main():
                     arrays[f'{ltag}_{"ab"[m]}'] = heat
                     st = concentration(heat, q, rec[(g, l)]['group'], rec[(g, l)]['rank'], args.local)
                     rows.append({'image': name, 'query': f'{q[0]},{q[1]}', 'layer': f'{g}.{l}', 'model': lab, **st})
-                maps = [display_map(hm, q, args.pct, args.gamma) for hm in heats]
+                maps = [display_map(hm, q, args.pct, args.gamma, args.dilate) for hm in heats]
                 save_figure(osp.join(args.out_dir, f'{ltag}.png'), rgb, gray, maps, labels, q, args.alpha,
                             args.cmap, f'{name}  query (row,col)={q}  layer {g}.{l}  |d o_q / d x_i|')
                 save_panel(osp.join(args.out_dir, f'{ltag}_input.png'), gray, None, q, args.alpha, args.cmap, rgb)
                 for m, hm in enumerate(maps):
                     save_panel(osp.join(args.out_dir, f'{ltag}_{"ab"[m]}.png'), gray, hm, q, args.alpha, args.cmap)
             if len(layers) > 1:
-                maps = [display_map(mn, q, args.pct, args.gamma) for mn in means]
+                maps = [display_map(mn, q, args.pct, args.gamma, args.dilate) for mn in means]
                 save_figure(osp.join(args.out_dir, f'{qtag}_mean.png'), rgb, gray, maps, labels, q, args.alpha,
                             args.cmap, f'{name}  query (row,col)={q}  mean over layers {" ".join(args.layers)}')
                 for m, hm in enumerate(maps):
