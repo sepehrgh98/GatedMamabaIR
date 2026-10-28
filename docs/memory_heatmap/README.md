@@ -40,3 +40,41 @@ Per example `<tag>`:
   - These are three hand-picked examples from 9 points.
   - img012 and img073 are 256×256 crops: the model only saw the crop.
   - The scan is causal over the sorted sequence, so a pixel can only read pixels sorted before it.
+
+## Pass 4: larger pool (11 images, 33 query points, 66 pairs)
+
+Files are in [`pass4/`](pass4/), with commands in [`pass4/COMMANDS.md`](pass4/COMMANDS.md).
+
+**What was probed:**
+- **Images:** 9 Urban100 facade crops (001, 005, 015, 030, 034, 035, 041, 043, 067) plus the controls 012 and 073, all 256×256 crops.
+- **Queries:** 3 window points per image.
+- **Layers:** 2.3 and 3.3.
+
+**Display:** `--pct 98 --dilate 1`, so isolated dots show at print size. The stats are unchanged by this.
+
+Top 4, ranked by eye. I penalised DeltaSR haze over flat regions.
+
+1. **`img035x2_crop60_40_q205_45_L2.3`** (blue window grid)
+   - MambaIRv2: a band of rows just above the query (recent scan neighbours) plus the mullion edges.
+   - DeltaSR: the inside of every blue pane across the whole facade; the frames stay mostly empty.
+2. **`img041x2_crop40_128_q178_249_L2.3`** (square windows)
+   - MambaIRv2: only the squares along the query's own row.
+   - DeltaSR: individual square windows all over the facade.
+3. **`img005x2_crop100_40_q182_197_L2.3`** (curved curtain wall)
+   - MambaIRv2: sparse dots on the white horizontal bars (unrelated edges).
+   - DeltaSR: the dark glass panes across the facade, strongest above and left of the query.
+4. **`img015x2_crop110_128_q217_235_L3.3`** (lit tower)
+   - MambaIRv2: almost nothing, just scattered weak dots.
+   - DeltaSR: the lit window rows across the facade. Weaker: its strongest weight sits in the ~60 rows above the query, with some haze.
+
+**Concentration numbers do not favour DeltaSR for these four:**
+- `eff_tokens` is 3–28× higher for DeltaSR.
+- `top1pct_mass` is lower for DeltaSR.
+- Only `far_mass` is higher or equal for DeltaSR, in 3 of 4.
+
+Across all 66 pairs:
+- DeltaSR has fewer `eff_tokens` in 9 pairs, all at layer 2.3 (9/33 there, 0/33 at layer 3.3).
+- It has a higher `top1pct_mass` in 10 pairs.
+- Its `far_mass` is higher or equal in 56 pairs.
+
+The pictures and the numbers agree once you read them correctly: DeltaSR reads from *many* matching windows spread over the facade, which scores as "less concentrated". MambaIRv2 reads a narrow band of recent neighbours. So for the paper, describe the figure as "DeltaSR reads from repeated structure across the image", not "DeltaSR is more focused".
