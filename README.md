@@ -28,6 +28,8 @@ Classic SR, PSNR (dB) / SSIM on the Y channel. Both models use the **same recipe
 | **GatedMambaIR (lean)** | **34.99 / 0.9320** | **30.87 / 0.8521** | **29.44 / 0.8140** | **29.77 / 0.8820** | **35.16 / 0.9534** |
 | Gain (PSNR) | +0.04 | +0.01 | +0.02 | +0.17 | +0.05 |
 
+![×3 250k fine-tune training curves and final test gains](docs/x3_curves.png)
+
 ### ×4
 
 | Model | Set5 | Set14 | B100 | Urban100 | Manga109 |
@@ -36,10 +38,12 @@ Classic SR, PSNR (dB) / SSIM on the Y channel. Both models use the **same recipe
 | **GatedMambaIR (lean)** | **32.83 / 0.9031** | **29.12 / 0.7937** | **27.90 / 0.7479** | **27.49 / 0.8253** | **32.10 / 0.9253** |
 | Gain (PSNR) | +0.05 | +0.04 | +0.02 | +0.17 | +0.09 |
 
+![×4 250k fine-tune training curves and final test gains](docs/x4_curves.png)
+
 - The largest gain is on **Urban100** at every scale (+0.16 / +0.17 / +0.17 dB). It is the set with the most long-range repeated structure.
 - Set14 validation during training: lean is ahead at 75 of 81 same-step checkpoints after 100k steps at ×2, 46 of 50 at ×3 and 48 of 50 at ×4.
 - The official MambaIRv2 numbers are higher (e.g. ×2 Urban100 34.48) because they use batch 32 on 8 GPUs. Here both models use the same smaller batch, so the comparison is like for like.
-- Training curves: [×2](docs/500k_curves.png), [×3](docs/x3_curves.png), [×4](docs/x4_curves.png) (made by `tests/plot_curves.py --scale 2|3|4`).
+- The figures are made by `tests/plot_curves.py --scale 2|3|4`.
 
 Every test score is logged in [`docs/results.csv`](docs/results.csv). The running experiment log is [`docs/STATUS.md`](docs/STATUS.md).
 
