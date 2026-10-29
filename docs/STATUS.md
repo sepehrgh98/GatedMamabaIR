@@ -1,6 +1,6 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-27 23:30 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-10-28 22:30 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
@@ -14,6 +14,7 @@ _Last updated: 2026-10-27 23:30 EDT. Method and background: [GatedMambaIR.md](Ga
   - **+0.17 dB on Urban100** at both ×3 (29.77 vs 29.60) and ×4 (27.49 vs 27.32)
   - ×4 Manga109 +0.09; the other sets +0.01 to +0.05
   - SSIM is higher on every set at both scales. Curves: [x3_curves.png](x3_curves.png), [x4_curves.png](x4_curves.png).
+- **DeltaSR ablation studies launched** (2026-10-28, section 21, design in [ABLATIONS.md](ABLATIONS.md)): 11 new 50k runs (forgetting, replace vs accumulate, prompt position, capacity / d_s sweep, size-matched MambaIRv2 d_state 72); all finish ~Nov 3-6.
 - **Where the gain comes from (ablations, section 11):** the lean design itself (per-channel-gated linear-attention memory in place of the Mamba scan). The delta erase is not needed: lean without it (GLA) ties lean.
 
 ## What we did
@@ -292,9 +293,36 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 ![x3 curves](x3_curves.png)
 ![x4 curves](x4_curves.png)
 
-## Running / queued now (2026-10-27)
+### 21. DeltaSR ablation studies launched (2026-10-28)
 
-No GatedMambaIR training or test jobs are running. The ×2 / ×3 / ×4 comparison is complete. (The memory-heatmap analysis job 1530923 is separate.)
+- **Design:** [ABLATIONS.md](ABLATIONS.md) (Tables 1-4, Fig. A, Fig. B; which existing run fills each row). Branch `deltasr-ablations`.
+- **Code:** new options `gate: none`, `prompt_gates`, `record_log_alpha` in `gatedmambair_arch.py`. Defaults unchanged: the 50k chgate / headgate / original-delta checkpoints give **bit-identical** outputs before and after (`tests/test_ablation_options.py`).
+- **Enlarged MambaIRv2:** `d_state` **72** → **25,136,729** params (DeltaSR 25,124,201, +0.05%).
+- **GPU smoke test** (1531098, V100): all 11 new configs train at the real size (batch 2, 64×64 LR) with finite gradients; peak 11.8-14.2 GiB, so they fit the V100 like the earlier 50k runs.
+- **Same recipe** as the existing 50k ablations: ×2, DF2K, batch 2, lr 2e-4, milestones 25k/40k/45k/47.5k, seed 10, V100. Tests (5 sets, Y, crop 2) go to `results.csv` with tag `abl-…`.
+- **Fig. B (ours) done:** `results/forget_map/` (1531100; Urban100 img014 / img034 / img087, layer 2.3). Mean forget strength 0.72-0.73, range 0.56-0.77. The P-only-in-q panel follows when 1540891 finishes: rerun `analysis/forget_map.py` with the same arguments.
+- **Efficiency (Table 4, Fig. A(b)):** first try (1531099) failed because `fvcore` was not installed in `GMambaIR_env`; installed (`pip install --no-deps fvcore iopath yacs tabulate termcolor portalocker`, torch/numpy unchanged) and resubmitted as **1540939**. Output: `results/ablation_efficiency/`.
+- **Known, not new:** on tiny CPU inputs (≤32×32) at random init, the channel-gate chunk kernel can give NaN *gradients* (overflow in the backward of `decayed_dot`, `chunk.py`). The code before this change does the same; it never showed at the real training size (smoke test above, all earlier runs).
+
+| Run | Train | Test | Table / figure |
+|---|---|---|---|
+| `GatedMambaIR_SR_x2_abl_noforget_50k` | 1540887 | 1540888 | T1 exp1, T2 exp2 |
+| `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | 1540889 | 1540890 | T2 exp1 |
+| `GatedMambaIR_SR_x2_abl_promptq_50k` | 1540891 | 1540892 | T3 exp1, Fig. B |
+| `GatedMambaIR_SR_x2_abl_promptqa_50k` | 1540893 | 1540894 | T3 exp2 |
+| `GatedMambaIR_SR_x2_abl_promptqb_50k` | 1540895 | 1540896 | T3 exp3 |
+| `MambaIRv2_SR_x2_abl_dstate72_50k` | 1540897 | 1540898 | T4 row 2, Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds16_50k` | 1540899 | 1540900 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds48_50k` | 1540901 | 1540902 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds16_gla_50k` | 1540903 | 1540904 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds30_gla_50k` | 1540905 | 1540906 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds48_gla_50k` | 1540907 | 1540908 | Fig. A(a) |
+
+**Expected finish:** each training is ~1 day on a V100 (the earlier 50k runs took 23-26 h; the MambaIRv2 run is faster, ~0.8 s/step), each test ~1.5 h after. Only speed-25 is taking V100 jobs right now (speed-03 / speed-27 are draining) and the account cap is 4 GPUs, so the 11 runs will go about 1-2 at a time: **first results ~Oct 30, all ~Nov 3-6** unless the drained nodes come back.
+
+## Running / queued now (2026-10-28)
+
+The 11 ablation trainings and their tests (section 21), plus the efficiency job 1540939.
 
 ## Finished since last report
 
