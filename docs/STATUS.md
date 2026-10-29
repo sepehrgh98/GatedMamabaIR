@@ -304,21 +304,23 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 - **Efficiency (Table 4, Fig. A(b)):** first try (1531099) failed because `fvcore` was not installed in `GMambaIR_env`; installed (`pip install --no-deps fvcore iopath yacs tabulate termcolor portalocker`, torch/numpy unchanged) and resubmitted as **1540939**. Output: `results/ablation_efficiency/`.
 - **Known, not new:** on tiny CPU inputs (≤32×32) at random init, the channel-gate chunk kernel can give NaN *gradients* (overflow in the backward of `decayed_dot`, `chunk.py`). The code before this change does the same; it never showed at the real training size (smoke test above, all earlier runs).
 
-| Run | Train | Test | Table / figure |
-|---|---|---|---|
-| `GatedMambaIR_SR_x2_abl_noforget_50k` | 1540887 | 1540888 | T1 exp1, T2 exp2 |
-| `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | 1540889 | 1540890 | T2 exp1 |
-| `GatedMambaIR_SR_x2_abl_promptq_50k` | 1540891 | 1540892 | T3 exp1, Fig. B |
-| `GatedMambaIR_SR_x2_abl_promptqa_50k` | 1540893 | 1540894 | T3 exp2 |
-| `GatedMambaIR_SR_x2_abl_promptqb_50k` | 1540895 | 1540896 | T3 exp3 |
-| `MambaIRv2_SR_x2_abl_dstate72_50k` | 1540897 | 1540898 | T4 row 2, Fig. A(a) |
-| `GatedMambaIR_SR_x2_abl_ds16_50k` | 1540899 | 1540900 | Fig. A(a) |
-| `GatedMambaIR_SR_x2_abl_ds48_50k` | 1540901 | 1540902 | Fig. A(a) |
-| `GatedMambaIR_SR_x2_abl_ds16_gla_50k` | 1540903 | 1540904 | Fig. A(a) |
-| `GatedMambaIR_SR_x2_abl_ds30_gla_50k` | 1540905 | 1540906 | Fig. A(a) |
-| `GatedMambaIR_SR_x2_abl_ds48_gla_50k` | 1540907 | 1540908 | Fig. A(a) |
+| Run | Train | GPU | Test | Table / figure |
+|---|---|---|---|---|
+| `GatedMambaIR_SR_x2_abl_noforget_50k` | 1540887 | V100 | 1540888 | T1 exp1, T2 exp2 |
+| `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | 1540889 | A100 80GB | 1540890 | T2 exp1 |
+| `GatedMambaIR_SR_x2_abl_promptq_50k` | 1540891 | A100 80GB | 1540892 | T3 exp1, Fig. B |
+| `GatedMambaIR_SR_x2_abl_promptqa_50k` | 1540893 | A100 80GB | 1540894 | T3 exp2 |
+| `GatedMambaIR_SR_x2_abl_promptqb_50k` | 1540895 | V100 | 1540896 | T3 exp3 |
+| `MambaIRv2_SR_x2_abl_dstate72_50k` | 1540897 | V100 | 1540898 | T4 row 2, Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds16_50k` | 1540899 | A100 80GB | 1540900 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds48_50k` | 1540901 | V100 | 1540902 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds16_gla_50k` | 1540903 | V100 | 1540904 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds30_gla_50k` | 1540905 | V100 | 1540906 | Fig. A(a) |
+| `GatedMambaIR_SR_x2_abl_ds48_gla_50k` | 1540907 | A100 80GB | 1540908 | Fig. A(a) |
 
-**Expected finish:** each training is ~1 day on a V100 (the earlier 50k runs took 23-26 h; the MambaIRv2 run is faster, ~0.8 s/step), each test ~1.5 h after. Only speed-25 is taking V100 jobs right now (speed-03 / speed-27 are draining) and the account cap is 4 GPUs, so the 11 runs will go about 1-2 at a time: **first results ~Oct 30, all ~Nov 3-6** unless the drained nodes come back.
+**GPU split (2026-10-28, user approved):** V100 capacity is low (only speed-25 up; speed-03 / speed-27 draining), so 5 runs were moved to full A100 80GB GPUs (`scontrol update ... Gres=gpu:nvidia_a100_7g.80gb:1`). Same recipe (batch 2, same schedule and seed); only the GPU type differs. Not the small A100 slices: they fit in memory (peak 14.2 GiB) but have 1/7-2/7 of the compute.
+
+**Expected finish:** each training is ~1 day on a V100 (less on a full A100) (the earlier 50k runs took 23-26 h; the MambaIRv2 run is faster, ~0.8 s/step), each test ~1.5 h after. Only speed-25 is taking V100 jobs right now (speed-03 / speed-27 are draining) and the account cap is 4 GPUs, so the 11 runs will go about 1-2 at a time: **first results ~Oct 30, all ~Nov 3-6** unless the drained nodes come back.
 
 ## Running / queued now (2026-10-28)
 
