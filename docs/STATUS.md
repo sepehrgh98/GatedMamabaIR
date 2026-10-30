@@ -1,6 +1,6 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-28 22:30 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-10-29 22:40 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
@@ -307,9 +307,9 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 | Run | Train | GPU | Test | Table / figure |
 |---|---|---|---|---|
 | `GatedMambaIR_SR_x2_abl_noforget_50k` | 1540887 | V100 | 1540888 | T1 exp1, T2 exp2 |
-| `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | 1540889 | A100 80GB | 1540890 | T2 exp1 |
-| `GatedMambaIR_SR_x2_abl_promptq_50k` | 1540891 | A100 80GB | 1540892 | T3 exp1, Fig. B |
-| `GatedMambaIR_SR_x2_abl_promptqa_50k` | 1540893 | A100 80GB | 1540894 | T3 exp2 |
+| `GatedMambaIR_SR_x2_abl_noforget_gla_50k` | 1540889 | A100 20GB slice | 1540890 | T2 exp1 |
+| `GatedMambaIR_SR_x2_abl_promptq_50k` | 1540891 | A100 20GB slice | 1540892 | T3 exp1, Fig. B |
+| `GatedMambaIR_SR_x2_abl_promptqa_50k` | 1540893 | A100 20GB slice | 1540894 | T3 exp2 |
 | `GatedMambaIR_SR_x2_abl_promptqb_50k` | 1540895 | V100 | 1540896 | T3 exp3 |
 | `MambaIRv2_SR_x2_abl_dstate72_50k` | 1540897 | V100 | 1540898 | T4 row 2, Fig. A(a) |
 | `GatedMambaIR_SR_x2_abl_ds16_50k` | 1540899 | A100 80GB | 1540900 | Fig. A(a) |
@@ -322,9 +322,21 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 
 **Expected finish:** each training is ~1 day on a V100 (less on a full A100) (the earlier 50k runs took 23-26 h; the MambaIRv2 run is faster, ~0.8 s/step), each test ~1.5 h after. Only speed-25 is taking V100 jobs right now (speed-03 / speed-27 are draining) and the account cap is 4 GPUs, so the 11 runs will go about 1-2 at a time: **first results ~Oct 30, all ~Nov 3-6** unless the drained nodes come back.
 
-## Running / queued now (2026-10-28)
+## Running / queued now (2026-10-29)
 
-The 11 ablation trainings and their tests (section 21), plus the efficiency job 1540939.
+**Ablations (section 21): 4 of 11 training (the account's 4-GPU cap), none finished yet.**
+
+| Run | GPU | Step (Oct 29 22:30) | s/step | Training ends |
+|---|---|---|---|---|
+| no forgetting + replace (1540887) | V100 | 44.1k | 1.9 | ~Oct 30 02:00 |
+| no forgetting + accumulate (1540889) | A100 2g.20gb | 33.6k | 2.1 | ~Oct 30 08:00 |
+| P only in q (1540891) | A100 2g.20gb | 27.4k | 2.6 | ~Oct 30 15:00 |
+| P in q + alpha (1540893) | A100 2g.20gb | 26.9k | 2.6 | ~Oct 30 15:00 |
+
+- The other 7 trainings and the efficiency job 1540939 wait for a free GPU (`AssocGrpGRES`); all ablations done ~Nov 1-2. Each test starts ~1.5 h after its training.
+- **GPU changes (2026-10-28, user approved):** 1540889 / 1540891 / 1540893 moved to A100 **2g.20gb** slices (`scontrol update ... Gres=gpu:nvidia_a100_2g.20gb:1`): they fit (peak 14.2 GiB) and run only ~30% slower than the V100. The monthly maintenance (Oct 28) left speed-03 / speed-27 (V100) drained with no jobs, and speed-37/39/40/41 (A100) draining behind other users' jobs (~5-6 days).
+- No NaNs in any run. The one `Traceback` near the top of each training log is `train.sh`'s CUDA check (`check_cuda.py`), harmless.
+- Set14 validation so far is within noise of DeltaSR at the same step (e.g. 40k: no forgetting + replace 33.24, ours 33.23); the final 5-set tests decide.
 
 ## Finished since last report
 
