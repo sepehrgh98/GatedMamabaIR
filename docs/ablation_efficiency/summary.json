@@ -1,0 +1,179 @@
+{
+ "gpu": "Tesla V100-PCIE-32GB",
+ "size": 256,
+ "scale": 2,
+ "table4": [
+  {
+   "model": "MambaIRv2, d_state 16",
+   "params": 22903001,
+   "gflops": 1783.5,
+   "time_s": 1.9854,
+   "peak_mem_mib": 1675,
+   "trained_weights": true,
+   "urban100": [
+    31.5257,
+    0.923
+   ],
+   "manga109": [
+    38.3842,
+    0.9765
+   ],
+   "fvcore_uncounted_ops": {
+    "aten::add": 390,
+    "aten::sub": 6,
+    "aten::mul": 185,
+    "aten::fill_": 9,
+    "aten::ne": 1,
+    "aten::softmax": 36,
+    "aten::log_softmax": 36,
+    "aten::argmax": 72,
+    "aten::scatter_": 36,
+    "aten::sort": 36,
+    "aten::sigmoid": 36,
+    "aten::leaky_relu_": 1,
+    "aten::pixel_shuffle": 1,
+    "aten::div": 1
+   }
+  },
+  {
+   "model": "MambaIRv2, d_state 72",
+   "params": 25136729,
+   "gflops": 2306.2,
+   "time_s": 2.3173,
+   "peak_mem_mib": 1687,
+   "trained_weights": true,
+   "urban100": null,
+   "manga109": null,
+   "fvcore_uncounted_ops": {
+    "aten::add": 390,
+    "aten::sub": 6,
+    "aten::mul": 185,
+    "aten::fill_": 9,
+    "aten::ne": 1,
+    "aten::softmax": 36,
+    "aten::log_softmax": 36,
+    "aten::argmax": 72,
+    "aten::scatter_": 36,
+    "aten::sort": 36,
+    "aten::sigmoid": 36,
+    "aten::leaky_relu_": 1,
+    "aten::pixel_shuffle": 1,
+    "aten::div": 1
+   }
+  },
+  {
+   "model": "DeltaSR, d_s 30",
+   "params": 22914197,
+   "gflops": 1876.2,
+   "time_s": 4.3945,
+   "peak_mem_mib": 1693,
+   "trained_weights": true,
+   "urban100": [
+    31.494,
+    0.9226
+   ],
+   "manga109": [
+    38.3866,
+    0.9764
+   ],
+   "fvcore_uncounted_ops": {
+    "aten::add": 37470,
+    "aten::sub": 18546,
+    "aten::mul": 18977,
+    "aten::fill_": 9,
+    "aten::ne": 1,
+    "aten::softmax": 36,
+    "aten::log_softmax": 36,
+    "aten::argmax": 72,
+    "aten::scatter_": 36,
+    "aten::sort": 36,
+    "aten::sigmoid": 108,
+    "aten::linalg_vector_norm": 72,
+    "aten::div": 73,
+    "aten::rsub": 36,
+    "aten::cumsum": 36,
+    "aten::tril": 36,
+    "aten::eye": 36,
+    "aten::linalg_solve_triangular": 72,
+    "aten::leaky_relu_": 1,
+    "aten::pixel_shuffle": 1
+   }
+  },
+  {
+   "model": "DeltaSR, d_s 87",
+   "params": 25124201,
+   "gflops": 2195.6,
+   "time_s": 4.8736,
+   "peak_mem_mib": 1860,
+   "trained_weights": true,
+   "urban100": [
+    31.6985,
+    0.9246
+   ],
+   "manga109": [
+    38.5075,
+    0.9768
+   ],
+   "fvcore_uncounted_ops": {
+    "aten::add": 37470,
+    "aten::sub": 18546,
+    "aten::mul": 18977,
+    "aten::fill_": 9,
+    "aten::ne": 1,
+    "aten::softmax": 36,
+    "aten::log_softmax": 36,
+    "aten::argmax": 72,
+    "aten::scatter_": 36,
+    "aten::sort": 36,
+    "aten::sigmoid": 108,
+    "aten::linalg_vector_norm": 72,
+    "aten::div": 73,
+    "aten::rsub": 36,
+    "aten::cumsum": 36,
+    "aten::tril": 36,
+    "aten::eye": 36,
+    "aten::linalg_solve_triangular": 72,
+    "aten::leaky_relu_": 1,
+    "aten::pixel_shuffle": 1
+   }
+  }
+ ],
+ "chunks": [
+  {
+   "form": "chunk L=32",
+   "L": 32,
+   "time_s": 12.7798,
+   "peak_mem_mib": 1808,
+   "max_abs_diff_vs_L128": 5.942583084106445e-05
+  },
+  {
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 7.0817,
+   "peak_mem_mib": 1830,
+   "max_abs_diff_vs_L128": 0.002893686294555664
+  },
+  {
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 4.8725,
+   "peak_mem_mib": 1866,
+   "max_abs_diff_vs_L128": 0.0
+  },
+  {
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 4.1483,
+   "peak_mem_mib": 2040,
+   "max_abs_diff_vs_L128": 5.936622619628906e-05
+  },
+  {
+   "form": "recurrent",
+   "L": null,
+   "time_s": 437.2298,
+   "peak_mem_mib": 1699,
+   "max_abs_diff_vs_L128": 0.002592921257019043
+  }
+ ],
+ "chunk_check_image": "datasets/SR/Urban100/LR_bicubic/X2/img004x2.png"
+}

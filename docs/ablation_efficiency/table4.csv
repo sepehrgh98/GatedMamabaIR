@@ -1,0 +1,5 @@
+model,params,GFLOPs,time_s,peak_mem_MiB,Urban100 PSNR/SSIM,Manga109 PSNR/SSIM,trained_weights
+"MambaIRv2, d_state 16",22903001,1783.5,1.9854,1675,31.53 / 0.9230,38.38 / 0.9765,True
+"MambaIRv2, d_state 72",25136729,2306.2,2.3173,1687,pending,pending,True
+"DeltaSR, d_s 30",22914197,1876.2,4.3945,1693,31.49 / 0.9226,38.39 / 0.9764,True
+"DeltaSR, d_s 87",25124201,2195.6,4.8736,1860,31.70 / 0.9246,38.51 / 0.9768,True
