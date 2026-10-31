@@ -79,14 +79,18 @@ All x2 runs are submitted at once in priority order, on both Slurm accounts (`om
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SwinIR | | | | | | | | | | | to launch |
-| HAT | | | | | | | | | | | to launch |
-| MambaIR | | | | | | | | | | | to launch |
-| RCAN | | | | | | | | | | | to launch |
-| DAT | | | | | | | | | | | to launch |
-| CAT_A | | | | | | | | | | | to launch |
-| EDSR | | | | | | | | | | | to launch |
-| SAN | | | | | | | | | | | to launch |
+| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | | | queued (A100 80GB) |
+| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | | | queued |
+| MambaIR | swamy | 1554560 | 1554561 | 1554562 | 1554563 | 1554564 | 1554565 | 1554566 | | | queued |
+| RCAN | swamy | 1554567 | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | | | queued |
+| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | | | queued (omair GPUs busy with ablations) |
+| CAT_A | omair | 1554581 | 1554582 | 1554583 | 1554584 | 1554585 | 1554586 | 1554587 | | | queued |
+| EDSR | omair | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | queued |
+| SAN | omair | 1554595 | 1554596 | 1554597 | 1554598 | 1554599 | 1554600 | 1554601 | | | queued |
+
+Submitted 2026-10-31 ~14:50 from main @ 4c2733f, all with `ExcNodeList=speed-[01,05,17,38]` (speed-38 has a broken GPU).
+At submit time `swamy` had 2 free GPUs and `omair` 0 (4 ablation runs), so the order in which they start follows the queue.
+s/iter and ETA are filled in once each run passes 1k iterations.
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
