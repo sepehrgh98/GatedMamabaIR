@@ -79,18 +79,38 @@ All x2 runs are submitted at once in priority order, on both Slurm accounts (`om
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | | | queued (A100 80GB) |
-| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | | | queued |
-| MambaIR | swamy | 1554560 | 1554561 | 1554562 | 1554563 | 1554564 | 1554565 | 1554566 | | | queued |
-| RCAN | swamy | 1554567 | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | | | queued |
-| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | | | queued (omair GPUs busy with ablations) |
-| CAT_A | omair | 1554581 | 1554582 | 1554583 | 1554584 | 1554585 | 1554586 | 1554587 | | | queued |
-| EDSR | omair | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | queued |
-| SAN | omair | 1554595 | 1554596 | 1554597 | 1554598 | 1554599 | 1554600 | 1554601 | | | queued |
+| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | 0.50 (V100, iter 700) | ~Nov 3 | x2 training on V100 speed-25 since 15:22 |
+| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | 0.66 (V100, iter 500) | ~Nov 4 | x2 training on V100 speed-27 since 15:23 |
+| MambaIR | swamy | 1554560 | 1554561 | 1554562 | 1554563 | 1554564 | 1554565 | 1554566 | | | x2 queued (A100 80GB) |
+| RCAN | swamy | 1554567 | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | | | x2 queued (V100) |
+| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | | | x2 queued (V100; omair GPUs busy with ablations) |
+| CAT_A | omair | 1554581 | 1554582 | 1554583 | 1554584 | 1554585 | 1554586 | 1554587 | | | x2 queued (V100) |
+| EDSR | omair | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | x2 queued (V100) |
+| SAN | omair | 1554595 | 1554596 | 1554597 | 1554598 | 1554599 | 1554600 | 1554601 | | | x2 queued (V100) |
 
 Submitted 2026-10-31 ~14:50 from main @ 4c2733f, all with `ExcNodeList=speed-[01,05,17,38]` (speed-38 has a broken GPU).
 At submit time `swamy` had 2 free GPUs and `omair` 0 (4 ablation runs), so the order in which they start follows the queue.
 s/iter and ETA are filled in once each run passes 1k iterations.
+
+**GPU change (2026-10-31, user OK'd "smaller GPUs, or even big"):** at launch only 3 A100-80GB slices were usable
+(speed-37/40/41 draining, 38 broken). Every baseline fits a V100 32GB (probe below), so all training jobs were moved to V100
+(`scontrol update Features=Model-V100 Gres=gpu:1`), except MambaIR x2 + resume (slowest, kept on A100-80GB). GPU type does not
+change the recipe; only speed. Tests stay on V100.
+
+Probe (`tests/probe_baselines_mem.py`, job 1554635, V100, random data, 20 timed Adam+L1 steps; real runs add data loading):
+
+| model | x2 (batch 4) peak / s/iter | x2 500k ≈ | x4 ft (batch 2) peak / s/iter |
+|---|---|---|---|
+| SwinIR | 6.1 GiB / 0.25 | 1.5 d | 3.2 GiB / 0.14 |
+| HAT | 12.4 GiB / 0.56 | 3.2 d | 6.3 GiB / 0.31 |
+| MambaIR | 19.4 GiB / 1.02 | 5.9 d | 10.1 GiB / 0.53 |
+| RCAN | 2.7 GiB / 0.20 | 1.1 d | 1.5 GiB / 0.17 |
+| DAT | 14.0 GiB / 0.56 | 3.3 d | 7.2 GiB / 0.34 |
+| CAT-A | 10.0 GiB / 0.48 | 2.8 d | 5.2 GiB / 0.31 |
+| EDSR | 1.8 GiB / 0.17 | 1.0 d | 1.6 GiB / 0.11 |
+| SAN | 2.2 GiB / 0.18 | 1.0 d | 1.3 GiB / 0.15 |
+
+The real limit is the 8-GPU cap (4 per account). The `omair` runs start as the DeltaSR ablation runs finish.
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
