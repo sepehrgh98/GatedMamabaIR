@@ -1,0 +1,90 @@
+# general settings
+name: test_RCAN_SR_x4_ft250k
+model_type: BaselineSRModel
+scale: 4
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_1:  # the 1st test dataset
+    name: Set5
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set5/HR
+    dataroot_lq: ./datasets/SR/Set5/LR_bicubic/X4
+    filename_tmpl: '{}x4'
+    io_backend:
+      type: disk
+
+  test_2:  # the 2nd test dataset
+    name: Set14
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set14/HR
+    dataroot_lq: ./datasets/SR/Set14/LR_bicubic/X4
+    filename_tmpl: '{}x4'
+    io_backend:
+      type: disk
+
+  test_3:  # the 3rd test dataset
+    name: B100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/B100/HR
+    dataroot_lq: ./datasets/SR/B100/LR_bicubic/X4
+    filename_tmpl: '{}x4'
+    io_backend:
+      type: disk
+
+  test_4:  # the 4th test dataset
+    name: Urban100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Urban100/HR
+    dataroot_lq: ./datasets/SR/Urban100/LR_bicubic/X4
+    filename_tmpl: '{}x4'
+    io_backend:
+      type: disk
+
+  test_5:  # the 5th test dataset
+    name: Manga109
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Manga109/HR
+    dataroot_lq: ./datasets/SR/Manga109/LR_bicubic/X4
+    filename_tmpl: '{}_LRBI_x4'
+    io_backend:
+      type: disk
+
+
+
+network_g:
+  type: RCAN
+  num_in_ch: 3
+  num_out_ch: 3
+  num_feat: 64
+  num_group: 10
+  num_block: 20
+  squeeze_factor: 16
+  upscale: 4
+  res_scale: 1
+  img_range: 255.
+  rgb_mean: [0.4488, 0.4371, 0.4040]
+
+
+
+# path
+path:
+  pretrain_network_g: /speed-scratch/se_gham/GatedMambaIR/experiments/RCAN_SR_x4_ft250k/models/net_g_250000.pth
+  strict_load_g: true
+
+# validation settings
+val:
+  tag: baseline-sameSetup-RCAN  # free-text label stored in docs/results.csv
+  save_img: true
+  suffix: x4ft250k
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 4
+      test_y_channel: true
+    ssim:
+      type: calculate_ssim
+      crop_border: 4
+      test_y_channel: true

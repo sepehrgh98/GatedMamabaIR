@@ -1,0 +1,94 @@
+# general settings
+name: test_CAT_A_SR_x2_500k
+model_type: BaselineSRModel
+scale: 2
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_1:  # the 1st test dataset
+    name: Set5
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set5/HR
+    dataroot_lq: ./datasets/SR/Set5/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_2:  # the 2nd test dataset
+    name: Set14
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Set14/HR
+    dataroot_lq: ./datasets/SR/Set14/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_3:  # the 3rd test dataset
+    name: B100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/B100/HR
+    dataroot_lq: ./datasets/SR/B100/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_4:  # the 4th test dataset
+    name: Urban100
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Urban100/HR
+    dataroot_lq: ./datasets/SR/Urban100/LR_bicubic/X2
+    filename_tmpl: '{}x2'
+    io_backend:
+      type: disk
+
+  test_5:  # the 5th test dataset
+    name: Manga109
+    type: PairedImageDataset
+    dataroot_gt: ./datasets/SR/Manga109/HR
+    dataroot_lq: ./datasets/SR/Manga109/LR_bicubic/X2
+    filename_tmpl: '{}_LRBI_x2'
+    io_backend:
+      type: disk
+
+
+
+network_g:
+  type: CAT
+  upscale: 2
+  in_chans: 3
+  img_size: 64
+  split_size_0: [2, 2, 2, 4, 4, 4]
+  split_size_1: [0, 0, 0, 0, 0, 0]
+  img_range: 1.
+  depth: [6, 6, 6, 6, 6, 6]
+  embed_dim: 180
+  num_heads: [6, 6, 6, 6, 6, 6]
+  mlp_ratio: 4
+  resi_connection: '1conv'
+  block_name: 'CATB_axial'
+  upsampler: 'pixelshuffle'
+
+
+
+# path
+path:
+  pretrain_network_g: /speed-scratch/se_gham/GatedMambaIR/experiments/CAT_A_SR_x2_500k/models/net_g_500000.pth
+  strict_load_g: true
+
+# validation settings
+val:
+  test_pad: {multiple: 4, mode: flip}  # official test-time padding, see BaselineSRModel
+  tag: baseline-sameSetup-CAT_A  # free-text label stored in docs/results.csv
+  save_img: true
+  suffix: sep
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 2
+      test_y_channel: true
+    ssim:
+      type: calculate_ssim
+      crop_border: 2
+      test_y_channel: true
