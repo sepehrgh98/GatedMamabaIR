@@ -1,6 +1,6 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-29 22:40 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-10-31 12:00 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
@@ -322,21 +322,49 @@ Lean is ahead at 8 of 11 checkpoints (average +0.09 dB). Set14 is noisy, so the 
 
 **Expected finish:** each training is ~1 day on a V100 (less on a full A100) (the earlier 50k runs took 23-26 h; the MambaIRv2 run is faster, ~0.8 s/step), each test ~1.5 h after. Only speed-25 is taking V100 jobs right now (speed-03 / speed-27 are draining) and the account cap is 4 GPUs, so the 11 runs will go about 1-2 at a time: **first results ~Oct 30, all ~Nov 3-6** unless the drained nodes come back.
 
-## Running / queued now (2026-10-29)
+### 22. First ablation results (2026-10-31)
 
-**Ablations (section 21): 4 of 11 training (the account's 4-GPU cap), none finished yet.**
+PSNR / SSIM, x2, 50k, same recipe. New runs in **bold** names; the rest are the existing 50k runs.
 
-| Run | GPU | Step (Oct 29 22:30) | s/step | Training ends |
+| Row | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 (ref) | 37.91 / 0.9602 | 33.42 / 0.9169 | 32.08 / 0.8985 | 31.53 / 0.9230 | 38.38 / 0.9765 |
+| **no forgetting + replace** (T1 exp1, T2 exp2) | 37.90 / 0.9604 | 33.44 / 0.9171 | 32.09 / 0.8988 | 31.62 / 0.9240 | 38.45 / 0.9766 |
+| **no forgetting + accumulate** (T2 exp1) | 37.83 / 0.9601 | 33.31 / 0.9160 | 32.02 / 0.8979 | 31.29 / 0.9206 | 38.19 / 0.9759 |
+| one rate per head (T1 exp2) | 37.91 / 0.9603 | 33.41 / 0.9168 | 32.10 / 0.8989 | 31.64 / 0.9240 | 38.44 / 0.9766 |
+| per-entry + accumulate (T2 exp3) | 37.94 / 0.9605 | 33.46 / 0.9172 | 32.11 / 0.8990 | 31.74 / 0.9250 | 38.49 / 0.9768 |
+| **P only in q** (T3 exp1) | 37.93 / 0.9604 | 33.42 / 0.9172 | 32.10 / 0.8989 | 31.64 / 0.9243 | test running |
+| **ours** (per-entry + replace, P in q+α+β) | 37.95 / 0.9604 | 33.46 / 0.9172 | 32.11 / 0.8990 | 31.70 / 0.9246 | 38.51 / 0.9768 |
+
+**Reading so far:**
+- **Table 2 has a clear result:** without forgetting, accumulation collapses (Urban100 31.29, −0.33 vs replacement, below MambaIRv2) while replacement keeps the memory usable (31.62). With per-entry forgetting the two write rules tie (31.74 vs 31.70). So forgetting and replacement are two ways to keep the memory clean; one of them is needed.
+- **Table 1 is ordered as expected but the steps are small:** no forgetting 31.62 → per head 31.64 → per entry 31.70 on Urban100 (Manga109 38.45 / 38.44 / 38.51). With replacement on, the memory is usable even without forgetting, so forgetting adds only ~0.08 dB. Single 50k runs: differences under ~0.05 dB are noise.
+- **Table 3 (partial):** P only in q costs 0.06 dB on Urban100 (31.64 vs 31.70).
+
+**Efficiency (Table 4), partial:** job 1540939 hit its 3 h limit while tracing FLOPs (fvcore traces the Python chunk loop slowly) after 3 of 4 models; resubmitted with a 1-day limit as **1554437**. Numbers it printed, V100, one 256×256 LR input, ×2:
+
+| Model | Params | GFLOPs | Time | Peak memory |
 |---|---|---|---|---|
-| no forgetting + replace (1540887) | V100 | 44.1k | 1.9 | ~Oct 30 02:00 |
-| no forgetting + accumulate (1540889) | A100 2g.20gb | 33.6k | 2.1 | ~Oct 30 08:00 |
-| P only in q (1540891) | A100 2g.20gb | 27.4k | 2.6 | ~Oct 30 15:00 |
-| P in q + alpha (1540893) | A100 2g.20gb | 26.9k | 2.6 | ~Oct 30 15:00 |
+| MambaIRv2, d_state 16 | 22,903,001 | 1,784 | 1.99 s | 1,675 MiB |
+| MambaIRv2, d_state 72 | 25,136,729 | 2,306 | 2.32 s | 1,687 MiB |
+| DeltaSR, d_s 30 | 22,914,197 | 1,876 | **4.62 s** | 1,693 MiB |
 
-- The other 7 trainings and the efficiency job 1540939 wait for a free GPU (`AssocGrpGRES`); all ablations done ~Nov 1-2. Each test starts ~1.5 h after its training.
-- **GPU changes (2026-10-28, user approved):** 1540889 / 1540891 / 1540893 moved to A100 **2g.20gb** slices (`scontrol update ... Gres=gpu:nvidia_a100_2g.20gb:1`): they fit (peak 14.2 GiB) and run only ~30% slower than the V100. The monthly maintenance (Oct 28) left speed-03 / speed-27 (V100) drained with no jobs, and speed-37/39/40/41 (A100) draining behind other users' jobs (~5-6 days).
-- No NaNs in any run. The one `Traceback` near the top of each training log is `train.sh`'s CUDA check (`check_cuda.py`), harmless.
-- Set14 validation so far is within noise of DeltaSR at the same step (e.g. 40k: no forgetting + replace 33.24, ours 33.23); the final 5-set tests decide.
+DeltaSR is ~2.3× slower at similar FLOPs: its chunk scan is a Python loop of small matmuls (plus a triangular solve per chunk, not counted by fvcore), while MambaIRv2's scan is one fused CUDA kernel. Worth stating honestly in the paper or fixing with a fused kernel.
+
+## Running / queued now (2026-10-31 12:00)
+
+| Run | Status |
+|---|---|
+| no forgetting + replace / + accumulate | **done** (section 22) |
+| P only in q | trained; test 1540892 running |
+| P in q + alpha, P in q + beta, MambaIRv2 d_state 72 | trained; tests 1540894 / 1540896 / 1540898 waiting for a GPU |
+| d_s 16 accumulate (1540903) | training, 49.1k / 50k |
+| d_s 48 replace (1540901) | training, 41.4k / 50k (~4 h) |
+| d_s 30 accumulate (1540905) | training, 32.7k / 50k (~8 h) |
+| d_s 16 replace (1540899), d_s 48 accumulate (1540907) | waiting for a GPU (A100 80GB) |
+| efficiency 1554437 | waiting for a GPU |
+
+speed-03 (V100) is back in service. The account's 4-GPU cap is the limit now.
 
 ## Finished since last report
 
