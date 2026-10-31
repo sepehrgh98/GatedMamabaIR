@@ -1,6 +1,6 @@
 # DeltaSR ablation design
 
-_Written 2026-10-28. Results land in [results.csv](results.csv); job ids and progress are in [STATUS.md](STATUS.md)._
+_Written 2026-10-28; results added 2026-10-31. Results land in [results.csv](results.csv); job ids and progress are in [STATUS.md](STATUS.md)._
 
 **DeltaSR** = lean GatedMambaIR with `gate: channel`, `use_delta: true`, `key_ratio: 0.25` / `head_dim: 87` (d_s = 87 keys, 1 head), `chunk_size: 128`, `use_prompt: true`. 25.1M params.
 
@@ -113,3 +113,94 @@ Reference sizes: DeltaSR (d_s 87) 25,124,201; DeltaSR d_s 30 22,914,197; MambaIR
 Tests: `tests/test_ablation_options.py` (existing 50k checkpoints give bit-identical outputs before/after the change; variants build, train and round-trip; the recorded map is in image order), `tests/test_gated_delta_scan.py` (adds a zero-decay case), `tests/check_ablation_variants.py` (GPU: a few training steps of every new config at the real size, finite gradients, peak memory).
 
 **Analysis scripts** (no training): `analysis/ablation_efficiency.py` (Table 4 columns, Fig. A(b)), `analysis/forget_map.py` (Fig. B). Launcher: `sbatch --gres=gpu:1 --constraint=Model-V100 analysis/gpu_job.sh <script> [args]`.
+
+## Results (as of 2026-10-31 evening)
+
+PSNR (dB) / SSIM on the Y channel, ×2, 50k iterations, same recipe for every row. Single runs: treat differences under ~0.05 dB as noise. **Bold** = best in the table. Raw numbers: [results.csv](results.csv) (tags `abl-*` for the new runs).
+
+**Status:** Tables 1-4, Fig. A(b) and Fig. B are complete. Fig. A(a) has 4 of 8 points; the rest arrive 2026-10-31 night (accumulate @ 30) and 2026-11-01 evening (replace @ 16, accumulate @ 48).
+
+### Table 1: forgetting mechanism (replacement kept on) — complete
+
+| Row | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 (ref) | 37.91 / 0.9602 | 33.42 / 0.9169 | 32.08 / 0.8985 | 31.53 / 0.9230 | 38.38 / 0.9765 |
+| exp1: no forgetting | 37.90 / 0.9604 | 33.44 / 0.9171 | 32.09 / 0.8988 | 31.62 / 0.9240 | 38.45 / 0.9766 |
+| exp2: one rate per head | 37.91 / 0.9603 | 33.41 / 0.9168 | 32.10 / 0.8989 | 31.64 / 0.9240 | 38.44 / 0.9766 |
+| **ours: per entry, content-adaptive** | **37.95 / 0.9604** | **33.46 / 0.9172** | **32.11 / 0.8990** | **31.70 / 0.9246** | **38.51 / 0.9768** |
+
+Reading: ordered as expected (none < per head < per entry), but the steps are small (+0.08 dB Urban100 from no forgetting to ours): with replacement on, the memory is already usable without forgetting.
+
+### Table 2: replacement vs accumulation (2×2) — complete
+
+| Forgetting | Write | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| none | accumulate | 37.83 / 0.9601 | 33.31 / 0.9160 | 32.02 / 0.8979 | **31.29** / 0.9206 | 38.19 / 0.9759 |
+| none | replace | 37.90 / 0.9604 | 33.44 / 0.9171 | 32.09 / 0.8988 | 31.62 / 0.9240 | 38.45 / 0.9766 |
+| per entry | accumulate | 37.94 / 0.9605 | 33.46 / 0.9172 | 32.11 / 0.8990 | **31.74 / 0.9250** | 38.49 / 0.9768 |
+| per entry (ours) | replace | **37.95** / 0.9604 | 33.46 / 0.9172 | 32.11 / 0.8990 | 31.70 / 0.9246 | **38.51 / 0.9768** |
+
+Reading (clearest result): with neither forgetting nor replacement the memory collapses (Urban100 31.29, below MambaIRv2's 31.53). Either mechanism alone fixes it (31.62 / 31.74), and with per-entry forgetting the two write rules tie.
+
+### Table 3: where the semantic prompt P enters — complete
+
+| P enters | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| exp1: q only | 37.93 / 0.9604 | 33.42 / 0.9172 | 32.10 / 0.8989 | 31.64 / 0.9243 | 38.47 / 0.9767 |
+| exp2: q + α | 37.86 / 0.9602 | 33.38 / 0.9165 | 32.07 / 0.8986 | 31.48 / 0.9226 | 38.39 / 0.9765 |
+| exp3: q + β | 37.85 / 0.9601 | 33.36 / 0.9162 | 32.06 / 0.8982 | 31.43 / 0.9218 | 38.36 / 0.9764 |
+| **ours: q + α + β** | **37.95 / 0.9604** | **33.46 / 0.9172** | **32.11 / 0.8990** | **31.70 / 0.9246** | **38.51 / 0.9768** |
+
+Reading: the full design is best, but adding P to only one gate is *worse* than q only (−0.16 / −0.21 dB Urban100). P helps only when it steers forgetting and writing together. The dip is large for single runs; a second seed would make it firmer.
+
+### Table 4: capacity and efficiency — complete
+
+V100, one 256×256 LR input, ×2 ([ablation_efficiency/](ablation_efficiency/)).
+
+| Model | Params | GFLOPs | Time | Peak memory | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| MambaIRv2, d_state 16 | 22.90M | 1,784 | 1.99 s | 1,675 MiB | 31.53 / 0.9230 | 38.38 / 0.9765 |
+| MambaIRv2, d_state 72 | 25.14M | 2,306 | 2.32 s | 1,687 MiB | **31.82 / 0.9258** | **38.56 / 0.9769** |
+| DeltaSR, d_s 30 | 22.91M | 1,876 | 4.39 s | 1,693 MiB | 31.49 / 0.9226 | 38.39 / 0.9764 |
+| DeltaSR, d_s 87 (ours) | 25.12M | 2,196 | 4.87 s | 1,860 MiB | 31.70 / 0.9246 | 38.51 / 0.9768 |
+
+Reading: **the intended message does not hold at 50k.** At the same parameter budget, MambaIRv2 with a larger state beats DeltaSR on all five sets (+0.12 Urban100, +0.05 Manga109; Set5 38.00 / Set14 33.49 / B100 32.13). DeltaSR also runs ~2.1× slower at fewer FLOPs (Python chunk loop + per-chunk triangular solve vs MambaIRv2's fused CUDA scan). Open: a 500k run of MambaIRv2 d_state 72 (our 500k win was against d_state 16), or reframing this table.
+
+### Fig. A(a): Urban100 PSNR vs memory size d_s — 4 of 8 points
+
+| d_s | replace (`use_delta: true`) | accumulate (`use_delta: false`) |
+|---|---|---|
+| 16 | pending (2026-11-01) | 31.65 / 0.9242 |
+| 30 | 31.49 / 0.9226 | pending (2026-10-31 night) |
+| 48 | 31.51 / 0.9228 | pending (2026-11-01) |
+| 87 | 31.70 / 0.9246 | 31.74 / 0.9250 |
+
+Reference points: MambaIRv2 d_state 16 = 31.53, d_state 72 = 31.82.
+
+Reading so far: replacement improves with memory size (31.49 → 31.51 → 31.70). Accumulation at the smallest size (31.65) is surprisingly strong, above replacement at 30 and 48 — the opposite of the "replacement uses a small memory better" hypothesis. Wait for the remaining points.
+
+### Fig. A(b): chunk length — complete
+
+DeltaSR d_s 87, trained 50k weights, V100, one 256×256 LR input ([chunks.png](ablation_efficiency/chunks.png)).
+
+| Form | Time | Peak memory | Max output diff vs L = 128 |
+|---|---|---|---|
+| chunk L = 32 | 12.78 s | 1,808 MiB | 0.00006 |
+| chunk L = 64 | 7.08 s | 1,830 MiB | 0.0029 |
+| **chunk L = 128 (used)** | **4.87 s** | 1,866 MiB | 0 |
+| chunk L = 160 | 4.15 s | 2,040 MiB | 0.00006 |
+| recurrent (token by token) | 437.2 s | 1,699 MiB | 0.0026 |
+
+Output differences are on the [0, 1] image scale (0.003 ≈ 0.7 of one gray level). Chunking is ~90× faster than the recurrence; longer chunks are faster but use more memory. The two larger differences (L = 64, recurrent) are bigger than float round-off; a likely cause is the order of tied tokens in the unstable semantic sort changing between passes, not the chunking itself (not yet verified).
+
+### Fig. B: learned forgetting map — complete
+
+[forget_map/](forget_map/): Urban100 img014 / img034 / img087, GSSM layer 2.3, input | ours | P only in q, shared colour scale.
+
+| Image | ours: mean forget strength | P only in q |
+|---|---|---|
+| img014 | 0.727 | 0.774 |
+| img034 | 0.723 | 0.772 |
+| img087 | 0.729 | 0.777 |
+
+Reading: both maps follow content (sky flat, facade follows windows and edges), since the gate also sees the pixel features. With P in the gate, the model forgets less overall and holds memories longer inside the repeated facade; with P only in q it forgets more everywhere, with a noisier pattern. (The design's guess "flatter without P" is not what we see.)
