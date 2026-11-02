@@ -86,7 +86,7 @@ All x2 runs are submitted at once in priority order, on both Slurm accounts (`om
 | DAT | omair | 1554574 | 1555982 | 1554576 | 1555983 | 1555984 | 1554579 | 1554580 | 0.75 (V100, 1 CPU) | ~Nov 5 | x2 at 137k, Set14 33.79 |
 | CAT_A | omair | 1555964 | 1555965 | 1554583 | 1555966 | 1555967 | 1554586 | 1554587 | | | x2 queued (V100) |
 | EDSR | swamy | 1555968 | 1555969 | 1554590 | 1555970 | 1555971 | 1554593 | 1554594 | | | x2 queued (V100) |
-| SAN | omair | 1555956 | 1555957 | 1554597 | 1555958 | 1555959 | 1554600 | 1554601 | | | x2 running on V100 speed-27 since 2026-11-01 21:45 (5 CPUs) |
+| SAN | omair | 1555956 | 1555957 | 1554597 | 1555958 | 1555959 | 1554600 | 1554601 | 0.21 (V100, 5 CPUs) | ~Nov 3 | x2 running on V100 speed-27 since 2026-11-01 21:33 |
 
 Training-job ids were replaced on 2026-11-01 (see Log, "rebuilt chains"); test ids are the originals.
 
