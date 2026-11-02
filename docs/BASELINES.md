@@ -79,13 +79,13 @@ All x2 runs are submitted at once in priority order, on both Slurm accounts (`om
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | 0.50 (V100, iter 700) | ~Nov 3 | x2 training on V100 speed-25 since 15:22 |
-| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | 0.66 (V100, iter 500) | ~Nov 4 | x2 training on V100 speed-27 since 15:23 |
+| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | 0.50 (V100, 1 CPU) | ~Nov 3 | x2 at 213k on 2026-11-01 19:30, Set14 33.77 |
+| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | 0.63 (V100, 1 CPU) | ~Nov 4 | x2 at 165k, Set14 33.79 |
 | MambaIR | swamy | 1554560 | 1554561 | 1554562 | 1554563 | 1554564 | 1554565 | 1554566 | | | x2 queued (A100 80GB) |
-| RCAN | swamy | 1554567 | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | | | x2 queued (V100) |
-| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | | | x2 queued (V100; omair GPUs busy with ablations) |
+| RCAN | swamy | 1554567 (cancelled, diverged) | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | 0.60 (V100, 1 CPU) | | diverged at 143.4k (see Log); queued (V100) to resume from 140k as 1554568 |
+| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | 0.75 (V100, 1 CPU) | ~Nov 5 | x2 at 137k, Set14 33.79 |
 | CAT_A | omair | 1554581 | 1554582 | 1554583 | 1554584 | 1554585 | 1554586 | 1554587 | | | x2 queued (V100) |
-| EDSR | omair | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | x2 queued (V100) |
+| EDSR | swamy (x2 moved) | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | x2 queued (V100) |
 | SAN | omair | 1554595 | 1554596 | 1554597 | 1554598 | 1554599 | 1554600 | 1554601 | | | x2 queued (V100) |
 
 Submitted 2026-10-31 ~14:50 from main @ 4c2733f, all with `ExcNodeList=speed-[01,05,17,38]` (speed-38 has a broken GPU).
@@ -111,6 +111,37 @@ Probe (`tests/probe_baselines_mem.py`, job 1554635, V100, random data, 20 timed 
 | SAN | 2.2 GiB / 0.18 | 1.0 d | 1.3 GiB / 0.15 |
 
 The real limit is the 8-GPU cap (4 per account). The `omair` runs start as the DeltaSR ablation runs finish.
+
+## Log
+
+**2026-11-01, RCAN x2 diverged.** Set14 rose to 33.52 (130k) and was 33.45 at 140k. At 143.4k l_pix jumped from ~0.01 to 1.8e2,
+then 6.5e4, and Set14 fell to 9-14 dB. RCAN has no gradient clipping and works on a 0-255 range, and our lr (2e-4) is twice
+RCAN's own (1e-4). Fix, recipe unchanged: the 145k-170k checkpoints went to `experiments/RCAN_SR_x2_500k/diverged_143k/`
+(kept), and x2 job 1554567 was cancelled, so its resume job 1554568 restarts from the 140k state. BasicSR's resume starts the epoch's
+data order from the beginning, so the batches differ from the first run. If it diverges again, ask before adding gradient clipping.
+
+**2026-11-01, CPUs and queue.** The first 4 runs got 1 CPU each, so the 4 dataloader workers share it with training
+(RCAN 0.60 s/iter vs 0.20 in the probe). The user decided to let them run. All pending training jobs got 5 CPUs:
+`scontrol update JobId=X NumCPUs=5 MinCPUsNode=5`. Updating NumCPUs alone left jobs in `BadConstraints` (never start).
+The 3 free GPU slots the accounts had could not be used: the only free GPUs were A100 MIG slices on speed-42, and that node is
+held for higher-priority 7g.80gb jobs of other users, so only jobs shorter than about 2 h backfill there (probe jobs: 5 min
+started, 1 day waited). RCAN/EDSR/SAN therefore stay queued for V100 (7-day limit). EDSR x2 moved to account `swamy`.
+
+## Timeline estimate (made 2026-11-01)
+
+Guess for **all baselines done (x2 + x3 + x4 + tests): about Nov 12-15**. Remaining work is about 38 V100 GPU-days (x2 about 20,
+x3/x4 about 18; probe speeds times about 1.5 for data loading), and the full cluster gives us about 3-4 GPUs at a time,
+so 10-13 days. MambaIR is likely last (slowest model, waits for an A100-80GB).
+
+| when (rough) | expected |
+|---|---|
+| ~Nov 3 | SwinIR x2 done, first test results |
+| ~Nov 4-5 | HAT x2, DAT x2 done; SAN / EDSR / RCAN start on the freed V100s |
+| ~Nov 5-8 | SAN, EDSR, RCAN x2; SwinIR x3/x4 |
+| ~Nov 7-11 | HAT, DAT, CAT-A x2 and x3/x4 |
+| ~Nov 12-15 | MambaIR (x2 then x3/x4); all tests |
+
+Faster if more GPUs free up; slower if a run diverges again or the queue stays full.
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
