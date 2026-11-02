@@ -79,14 +79,16 @@ All x2 runs are submitted at once in priority order, on both Slurm accounts (`om
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SwinIR | swamy | 1554546 | 1554547 | 1554548 | 1554549 | 1554550 | 1554551 | 1554552 | 0.50 (V100, 1 CPU) | ~Nov 3 | x2 at 213k on 2026-11-01 19:30, Set14 33.77 |
-| HAT | swamy | 1554553 | 1554554 | 1554555 | 1554556 | 1554557 | 1554558 | 1554559 | 0.63 (V100, 1 CPU) | ~Nov 4 | x2 at 165k, Set14 33.79 |
-| MambaIR | swamy | 1554560 | 1554561 | 1554562 | 1554563 | 1554564 | 1554565 | 1554566 | | | x2 queued (A100 80GB) |
-| RCAN | swamy | 1554567 (cancelled, diverged) | 1554568 | 1554569 | 1554570 | 1554571 | 1554572 | 1554573 | 0.60 (V100, 1 CPU) | | diverged at 143.4k (see Log); queued (V100) to resume from 140k as 1554568 |
-| DAT | omair | 1554574 | 1554575 | 1554576 | 1554577 | 1554578 | 1554579 | 1554580 | 0.75 (V100, 1 CPU) | ~Nov 5 | x2 at 137k, Set14 33.79 |
-| CAT_A | omair | 1554581 | 1554582 | 1554583 | 1554584 | 1554585 | 1554586 | 1554587 | | | x2 queued (V100) |
-| EDSR | swamy (x2 moved) | 1554588 | 1554589 | 1554590 | 1554591 | 1554592 | 1554593 | 1554594 | | | x2 queued (V100) |
-| SAN | omair | 1554595 | 1554596 | 1554597 | 1554598 | 1554599 | 1554600 | 1554601 | | | x2 queued (V100) |
+| SwinIR | swamy | 1554546 | 1555976 | 1554548 | 1555977 | 1555978 | 1554551 | 1554552 | 0.50 (V100, 1 CPU) | ~Nov 3 | x2 at 213k on 2026-11-01 19:30, Set14 33.77 |
+| HAT | swamy | 1554553 | 1555979 | 1554555 | 1555980 | 1555981 | 1554558 | 1554559 | 0.63 (V100, 1 CPU) | ~Nov 4 | x2 at 165k, Set14 33.79 |
+| MambaIR | swamy | 1555972 | 1555973 | 1554562 | 1555974 | 1555975 | 1554565 | 1554566 | | | x2 queued (A100 80GB) |
+| RCAN | swamy | 1555960 (1554567 diverged, cancelled) | 1555961 | 1554569 | 1555962 | 1555963 | 1554572 | 1554573 | 0.60 (V100, 1 CPU) | | diverged at 143.4k (see Log); queued (V100), resumes from 140k |
+| DAT | omair | 1554574 | 1555982 | 1554576 | 1555983 | 1555984 | 1554579 | 1554580 | 0.75 (V100, 1 CPU) | ~Nov 5 | x2 at 137k, Set14 33.79 |
+| CAT_A | omair | 1555964 | 1555965 | 1554583 | 1555966 | 1555967 | 1554586 | 1554587 | | | x2 queued (V100) |
+| EDSR | swamy | 1555968 | 1555969 | 1554590 | 1555970 | 1555971 | 1554593 | 1554594 | | | x2 queued (V100) |
+| SAN | omair | 1555956 | 1555957 | 1554597 | 1555958 | 1555959 | 1554600 | 1554601 | | | x2 running on V100 speed-27 since 2026-11-01 21:45 (5 CPUs) |
+
+Training-job ids were replaced on 2026-11-01 (see Log, "rebuilt chains"); test ids are the originals.
 
 Submitted 2026-10-31 ~14:50 from main @ 4c2733f, all with `ExcNodeList=speed-[01,05,17,38]` (speed-38 has a broken GPU).
 At submit time `swamy` had 2 free GPUs and `omair` 0 (4 ablation runs), so the order in which they start follows the queue.
@@ -126,6 +128,13 @@ data order from the beginning, so the batches differ from the first run. If it d
 The 3 free GPU slots the accounts had could not be used: the only free GPUs were A100 MIG slices on speed-42, and that node is
 held for higher-priority 7g.80gb jobs of other users, so only jobs shorter than about 2 h backfill there (probe jobs: 5 min
 started, 1 day waited). RCAN/EDSR/SAN therefore stay queued for V100 (7-day limit). EDSR x2 moved to account `swamy`.
+
+**2026-11-01 21:45, rebuilt chains.** A V100 freed on speed-27, but SAN 1554595 would not start, even with a 16 h limit,
+while fresh probe jobs with the same request (5 CPUs, 40G, V100, up to 16 h) started at once. Jobs whose CPU count was
+changed with `scontrol update NumCPUs/MinCPUsNode` after submission do not get scheduled. A fresh SAN x2 (1555956,
+7-day limit) started immediately. So every pending training job (x2 / resume / x3 / x4) was resubmitted fresh with `-c 5`,
+the original test jobs were re-pointed to them (`scontrol update Dependency=`), and then the old training jobs were cancelled.
+RCAN's new x2 (1555960) auto-resumes from the 140k state. Lesson: set CPUs at submit time (`sbatch -c 5`), never with scontrol.
 
 ## Timeline estimate (made 2026-11-01)
 
