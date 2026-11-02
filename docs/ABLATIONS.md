@@ -166,18 +166,20 @@ V100, one 256×256 LR input, ×2 ([ablation_efficiency/](ablation_efficiency/)).
 
 Reading: **the intended message does not hold at 50k.** At the same parameter budget, MambaIRv2 with a larger state beats DeltaSR on all five sets (+0.12 Urban100, +0.05 Manga109; Set5 38.00 / Set14 33.49 / B100 32.13). DeltaSR also runs ~2.1× slower at fewer FLOPs (Python chunk loop + per-chunk triangular solve vs MambaIRv2's fused CUDA scan). Open: a 500k run of MambaIRv2 d_state 72 (our 500k win was against d_state 16), or reframing this table.
 
-### Fig. A(a): Urban100 PSNR vs memory size d_s — 4 of 8 points
+### Fig. A(a): Urban100 PSNR vs memory size d_s — 7 of 8 points (1 provisional)
 
 | d_s | replace (`use_delta: true`) | accumulate (`use_delta: false`) |
 |---|---|---|
-| 16 | pending (2026-11-01) | 31.65 / 0.9242 |
-| 30 | 31.49 / 0.9226 | pending (2026-10-31 night) |
-| 48 | 31.51 / 0.9228 | pending (2026-11-01) |
+| 16 | pending (test running 2026-11-01) | 31.65 / 0.9242 |
+| 30 | 31.49 / 0.9226 | 31.50 / 0.9228 |
+| 48 | 31.51 / 0.9228 | 30.82 / 0.9151 **(provisional, see below)** |
 | 87 | 31.70 / 0.9246 | 31.74 / 0.9250 |
 
 Reference points: MambaIRv2 d_state 16 = 31.53, d_state 72 = 31.82.
 
-Reading so far: replacement improves with memory size (31.49 → 31.51 → 31.70). Accumulation at the smallest size (31.65) is surprisingly strong, above replacement at 30 and 48 — the opposite of the "replacement uses a small memory better" hypothesis. Wait for the remaining points.
+**Provisional point (accumulate @ 48, seed 10):** this run fell behind at ~15-20k (Set14 validation 31.38 at 20k vs 32.5-32.8 for the other runs) and never caught up (33.12 at 50k vs 33.4-33.5); it is lower on all five test sets. Config, checkpoint and data were checked; no NaNs, no loss spikes, no restart. Most likely an unlucky single run (batch 2 makes 50k training noisy; it also ran on an A100 slice, where convolutions use TF32). A re-run with seed 20 on a V100 (train 1555864, test 1555865, config `*_abl_ds48_gla_seed20_50k.yml`) will **replace** this point. Do not use 30.82 in the paper unmarked.
+
+Reading so far: replacement improves with memory size (31.49 → 31.51 → 31.70). Accumulation is flat at 16 / 30 (31.65 / 31.50) and best at 87 (31.74); the two write rules tie at 30 and 87. The "replacement uses a small memory better" hypothesis is not supported. At 50k, single-run noise (~0.1-0.3 dB) is as large as most differences here; the clear point is that d_s 87 is best for both rules.
 
 ### Fig. A(b): chunk length — complete
 
