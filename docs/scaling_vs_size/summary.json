@@ -1,0 +1,169 @@
+{
+ "gpu": "Tesla V100-PCIE-32GB",
+ "scale": 2,
+ "trained_weights": true,
+ "rows": [
+  {
+   "size": 64,
+   "pixels": 4096,
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 0.4807,
+   "peak_mem_mib": 217,
+   "status": "ok"
+  },
+  {
+   "size": 64,
+   "pixels": 4096,
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 0.3456,
+   "peak_mem_mib": 220,
+   "status": "ok"
+  },
+  {
+   "size": 64,
+   "pixels": 4096,
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 0.3085,
+   "peak_mem_mib": 230,
+   "status": "ok"
+  },
+  {
+   "size": 64,
+   "pixels": 4096,
+   "form": "recurrent",
+   "L": null,
+   "time_s": 27.2465,
+   "peak_mem_mib": 207,
+   "status": "ok"
+  },
+  {
+   "size": 128,
+   "pixels": 16384,
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 1.7313,
+   "peak_mem_mib": 534,
+   "status": "ok"
+  },
+  {
+   "size": 128,
+   "pixels": 16384,
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 1.1879,
+   "peak_mem_mib": 542,
+   "status": "ok"
+  },
+  {
+   "size": 128,
+   "pixels": 16384,
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 1.0156,
+   "peak_mem_mib": 586,
+   "status": "ok"
+  },
+  {
+   "size": 128,
+   "pixels": 16384,
+   "form": "recurrent",
+   "L": null,
+   "time_s": 108.525,
+   "peak_mem_mib": 499,
+   "status": "ok"
+  },
+  {
+   "size": 256,
+   "pixels": 65536,
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 6.9917,
+   "peak_mem_mib": 1819,
+   "status": "ok"
+  },
+  {
+   "size": 256,
+   "pixels": 65536,
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 4.7491,
+   "peak_mem_mib": 1851,
+   "status": "ok"
+  },
+  {
+   "size": 256,
+   "pixels": 65536,
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 4.1028,
+   "peak_mem_mib": 2021,
+   "status": "ok"
+  },
+  {
+   "size": 256,
+   "pixels": 65536,
+   "form": "recurrent",
+   "L": null,
+   "time_s": 437.6053,
+   "peak_mem_mib": 1680,
+   "status": "ok"
+  },
+  {
+   "size": 384,
+   "pixels": 147456,
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 16.5881,
+   "peak_mem_mib": 3960,
+   "status": "ok"
+  },
+  {
+   "size": 384,
+   "pixels": 147456,
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 11.6273,
+   "peak_mem_mib": 4032,
+   "status": "ok"
+  },
+  {
+   "size": 384,
+   "pixels": 147456,
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 10.2648,
+   "peak_mem_mib": 4411,
+   "status": "ok"
+  },
+  {
+   "size": 512,
+   "pixels": 262144,
+   "form": "chunk L=64",
+   "L": 64,
+   "time_s": 30.5219,
+   "peak_mem_mib": 6953,
+   "status": "ok"
+  },
+  {
+   "size": 512,
+   "pixels": 262144,
+   "form": "chunk L=128",
+   "L": 128,
+   "time_s": 21.6858,
+   "peak_mem_mib": 7080,
+   "status": "ok"
+  },
+  {
+   "size": 512,
+   "pixels": 262144,
+   "form": "chunk L=160",
+   "L": 160,
+   "time_s": 19.3658,
+   "peak_mem_mib": 7755,
+   "status": "ok"
+  }
+ ]
+}
