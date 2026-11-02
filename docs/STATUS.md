@@ -1,6 +1,6 @@
 # GatedMambaIR: Status Report
 
-_Last updated: 2026-10-31 12:00 EDT. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
+_Last updated: 2026-11-01 21:30 EST. Method and background: [GatedMambaIR.md](GatedMambaIR.md). All test scores: [results.csv](results.csv)._
 
 ## Summary
 
@@ -14,7 +14,7 @@ _Last updated: 2026-10-31 12:00 EDT. Method and background: [GatedMambaIR.md](Ga
   - **+0.17 dB on Urban100** at both ×3 (29.77 vs 29.60) and ×4 (27.49 vs 27.32)
   - ×4 Manga109 +0.09; the other sets +0.01 to +0.05
   - SSIM is higher on every set at both scales. Curves: [x3_curves.png](x3_curves.png), [x4_curves.png](x4_curves.png).
-- **DeltaSR ablation studies launched** (2026-10-28, section 21, design in [ABLATIONS.md](ABLATIONS.md)): 11 new 50k runs (forgetting, replace vs accumulate, prompt position, capacity / d_s sweep, size-matched MambaIRv2 d_state 72); all finish ~Nov 3-6.
+- **DeltaSR ablation studies: all done** (2026-11-01, section 23, full tables in [ABLATIONS.md](ABLATIONS.md)). Clear results: without forgetting *and* without replacement the memory collapses (Table 2); the full gate design is best (Tables 1, 3); chunking is ~80-90× faster than the recurrence at every input size (Fig. A(b)). **Against us at 50k:** MambaIRv2 enlarged to our size (d_state 72) beats DeltaSR on all five sets (Table 4), and DeltaSR runs ~2.1× slower than it.
 - **Where the gain comes from (ablations, section 11):** the lean design itself (per-channel-gated linear-attention memory in place of the Mamba scan). The delta erase is not needed: lean without it (GLA) ties lean.
 
 ## What we did
@@ -351,23 +351,37 @@ PSNR / SSIM, x2, 50k, same recipe. New runs in **bold** names; the rest are the 
 
 DeltaSR is ~2.3× slower at similar FLOPs: its chunk scan is a Python loop of small matmuls (plus a triangular solve per chunk, not counted by fvcore), while MambaIRv2's scan is one fused CUDA kernel. Worth stating honestly in the paper or fixing with a fused kernel.
 
-## Running / queued now (2026-10-31 12:00)
+### 23. DeltaSR ablation studies complete (2026-11-01)
 
-| Run | Status |
-|---|---|
-| no forgetting + replace / + accumulate | **done** (section 22) |
-| P only in q | trained; test 1540892 running |
-| P in q + alpha, P in q + beta, MambaIRv2 d_state 72 | trained; tests 1540894 / 1540896 / 1540898 waiting for a GPU |
-| d_s 16 accumulate (1540903) | training, 49.1k / 50k |
-| d_s 48 replace (1540901) | training, 41.4k / 50k (~4 h) |
-| d_s 30 accumulate (1540905) | training, 32.7k / 50k (~8 h) |
-| d_s 16 replace (1540899), d_s 48 accumulate (1540907) | waiting for a GPU (A100 80GB) |
-| efficiency 1554437 | waiting for a GPU |
+All 11 new 50k runs and their tests are done; full 5-set tables, readings and the dropped design are in [ABLATIONS.md](ABLATIONS.md) ("Results (final)"). Urban100 PSNR, ×2, 50k, single runs:
 
-speed-03 (V100) is back in service. The account's 4-GPU cap is the limit now.
+| Ablation | Result | Message |
+|---|---|---|
+| **Table 1** forgetting (replacement on) | none 31.62 · per head 31.64 · **per entry (ours) 31.70** | finer forgetting helps, but only by ~0.08 dB |
+| **Table 2** forgetting × write rule | none + accumulate **31.29** · none + replace 31.62 · per entry + accumulate 31.74 · ours 31.70 | memory collapses with neither mechanism; either one fixes it; with forgetting the write rules tie |
+| **Table 3** where P enters | q only 31.64 · q+α 31.48 · q+β 31.43 · **q+α+β (ours) 31.70** | full design best; P in one gate alone is worse than q only (needs a second seed to be firm) |
+| **Table 4** size-matched | MambaIRv2 d_state 16 31.53 · **d_state 72 31.82** · DeltaSR d_s 30 31.49 · d_s 87 31.70 | **against us:** at 25.1M MambaIRv2 with a bigger state wins on all 5 sets |
+| **Fig. A(a)** d_s, ours only | 30: 31.49 · 48: 31.51 · **87: 31.70** | needs enough memory slots; gain comes between 48 and 87 |
+| **Fig. A(b)** speed vs input size | L=128: 0.35 / 1.19 / 4.75 / 11.6 / 21.7 s at 64-512; recurrent 27 / 109 / 438 s at 64-256 | chunking 79-92× faster; time saved grows with size |
+| **Fig. B** forget maps | mean forget strength 0.72-0.73 (ours) vs 0.77 (P only in q) | with P the model forgets less and holds memories longer on repeated facades |
+
+**Efficiency (V100, 256×256 LR, ×2):** DeltaSR 25.1M 2,196 GFLOPs **4.87 s** 1,860 MiB vs MambaIRv2 d_state 72 25.1M 2,306 GFLOPs **2.32 s** 1,687 MiB. The gap is the Python chunk loop (+ a triangular solve per chunk) vs MambaIRv2's fused CUDA scan.
+
+**Fig. A redesign (2026-11-01, user):** the accumulate sweep did not support "replacement uses a small memory better" (the write rules tie where both are clean), so panel (a) now shows ours only (d_s 30/48/87, existing runs) and panel (b) shows speed vs input size (`analysis/scaling_vs_size.py`, job 1555905, Tesla V100-PCIE-32GB, 25 min, no OOM; 256 row matches the earlier run within 3%). Files: [scaling_vs_size/](scaling_vs_size/), [ablation_efficiency/](ablation_efficiency/), [forget_map/](forget_map/).
+
+**Things to know:**
+- Accumulate @ d_s 48 (seed 10) was a bad run (fell behind at ~20k, Urban100 30.82, no bug found); its seed-20 re-run (1555864 / 1555865) was cancelled after ~39 min once the redesign made it unnecessary. Kept only in the supplementary record.
+- Single 50k runs vary by ~0.1-0.3 dB here (batch 2), so small gaps (Table 1, Fig. A(a) below 87) are within noise.
+- Extra point, not in the figure: ours at d_s 16 = 31.53 Urban100 / 38.41 Manga109.
+- From 2026-10-31 jobs also use the second Slurm account `swamy` (own 4-GPU cap; `scontrol update JobId=X Account=swamy`).
+
+## Running / queued now (2026-11-01 21:30)
+
+**No DeltaSR ablation jobs left.** The `BL_*` jobs in the queue are the same-recipe baseline retraining (SwinIR, HAT, RCAN, DAT, MambaIR, CAT-A, EDSR, SAN at ×2/×3/×4), a separate effort tracked in [BASELINES.md](BASELINES.md).
 
 ## Finished since last report
 
+- **DeltaSR ablations (section 23):** trainings 1540887-1540907 (odd ids) and tests 1540888-1540908 (even ids), all completed 2026-10-30 to 11-01; efficiency 1554437 (Table 4; first try 1540939 timed out), forget maps 1531100 + 1554439 (Fig. B), speed vs input size 1555905 (+ quick check 1555899). Cancelled: seed-20 re-run 1555864 / 1555865.
 - **Lean ×3 / ×4 250k fine-tunes:** training 1437521 / 1437522 and tests 1437525 / 1437526 (Oct 27). Results in section 20.
 - **Lean ×2 500k:** training 1450198 (resume from 275k, done Oct 21) and test 1433568 (Oct 22). Results in section 18.
 - **MambaIRv2:** ×2 500k (1410815, test 1433380), ×3/×4 100k (1433564/5, tests 1433569/70), ×3/×4 250k (1437519/20, tests 1437523/24).
@@ -386,12 +400,11 @@ speed-03 (V100) is back in service. The account's 4-GPU cap is the limit now.
 1. ~~Both 500k runs~~ **Done: lean wins on all 5 ×2 sets (section 18).**
 2. **Lean won at 500k, so now:** (per-head and exact-size ablations are already done, see section 9):
    - ~~**×3 and ×4**~~ **Done: lean wins on all 5 sets at both scales (section 20).**
-   - **Ablations** (50k each, same recipe), each removing one piece of the lean model:
-     - lean **without the delta erase** (GLA): done, ties lean (section 11),
-     - lean with **per-head** forgetting: done (section 9),
-     - **exact size** 22.9M: done, ties MambaIRv2 (section 9),
-     - optionally: no prompt, different chunk size.
-   - **Speed and FLOPs** report (params, FLOPs, inference time) against MambaIRv2.
+   - ~~**Ablations**~~ **Done: full DeltaSR ablation set (Tables 1-4, Fig. A, Fig. B), section 23 and [ABLATIONS.md](ABLATIONS.md).**
+   - ~~**Speed and FLOPs** report~~ **Done (Table 4, Fig. A(b)).** DeltaSR is ~2.1× slower than a same-size MambaIRv2; a fused scan kernel would close this.
+   - **Open after the ablations (decide):**
+     - Table 4 goes against us at 50k: run MambaIRv2 d_state 72 at 500k (~12 days on one GPU) to see if it still wins at full training, or reframe Table 4 around speed / memory behaviour.
+     - Optional second seed for the Table 3 rows (q+α, q+β), whose dip is large for single runs.
    - **Novelty check:** search for prior "delta rule / Gated DeltaNet for super-resolution" work.
 3. **To make it a strong paper (optional):** a **lightweight** version (~0.8M params) trained with the paper's exact recipe (batch 32), compared directly with published numbers.
 4. **If lean does not win at 500k:** look at the training curves and the ablations before deciding the next design change.
