@@ -136,6 +136,25 @@ changed with `scontrol update NumCPUs/MinCPUsNode` after submission do not get s
 the original test jobs were re-pointed to them (`scontrol update Dependency=`), and then the old training jobs were cancelled.
 RCAN's new x2 (1555960) auto-resumes from the 140k state. Lesson: set CPUs at submit time (`sbatch -c 5`), never with scontrol.
 
+## Status and finish estimate (2026-11-02 19:25)
+
+Each model needs x2 (500k), then x3 + x4 fine-tunes (start together when x2 is done), each followed by a test.
+7 of 8 training, no crashes. Times are rough (x3/x4 need 2 GPUs each and may queue).
+
+| # | model | x2 status | x2 done (approx.) | x3 + x4 done (approx.) |
+|---|---|---|---|---|
+| 1 | SAN | running, 375k / 500k | Tue Nov 3, 3am | ~Wed Nov 4 |
+| 2 | RCAN | running, 304k / 500k (diverged twice, recovered; user decides keep vs rerun with grad clipping after its x2 test) | Tue Nov 3, 9am | ~Wed Nov 4 |
+| 3 | SwinIR | running, 381k / 500k | Tue Nov 3, noon | ~Wed Nov 4 |
+| 4 | HAT | running, 297k / 500k | Wed Nov 4, 8am | ~Thu-Fri Nov 5-6 |
+| 5 | EDSR | waiting (`swamy` 4-GPU cap); starts when RCAN finishes | ~Wed Nov 4, evening | ~Thu Nov 5 |
+| 6 | DAT | running, 249k / 500k | Thu Nov 5, ~midnight | ~Fri-Sat Nov 6-7 |
+| 7 | CAT-A | running, 124k / 500k | Thu Nov 5, 3am | ~Fri-Sat Nov 6-7 |
+| 8 | MambaIR | running (A100-80GB), 65k / 500k | Fri Nov 6, 4pm | ~Nov 8-9 |
+
+**All done (x2 + x3 + x4 + tests): about Nov 9-12** (earlier than the Nov 12-15 estimate below).
+Already done with the same recipe: MambaIRv2 and DeltaSR, x2 / x3 / x4.
+
 ## Timeline estimate (made 2026-11-01)
 
 Guess for **all baselines done (x2 + x3 + x4 + tests): about Nov 12-15**. Remaining work is about 38 V100 GPU-days (x2 about 20,
