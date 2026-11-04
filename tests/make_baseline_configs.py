@@ -120,7 +120,7 @@ MODELS = {
   upsampler: 'pixelshuffle'
 '''),
     'SAN': dict(  # SAN TrainCode/option.py defaults + README (20 groups x 10 blocks, 64 feats, reduction 16)
-        model_type='BaselineSRModel', test_pad=None, unused=True,
+        model_type='BaselineSRModel', test_pad=None, unused=True, test_chop='{shave: 10, min_size: 160000}',
         net='''  type: SAN
   upscale: {s}
   n_resgroups: 20
@@ -168,6 +168,8 @@ def make(model, m, s, kind):
         t = swap(t, r'^  tag: .*?$', f'  tag: baseline-sameSetup-{model}  # free-text label stored in docs/results.csv')
     if m['test_pad']:
         t = swap(t, r'^(val:\n)', r'\1' + f'  test_pad: {m["test_pad"]}  # official test-time padding, see BaselineSRModel\n')
+    if kind == 'test' and m.get('test_chop'):
+        t = swap(t, r'^(val:\n)', r'\1' + f'  test_chop: {m["test_chop"]}  # official SAN test uses --chop (OOM otherwise)\n')
     out = f'options/{kind}/baselines/{kind}_{stem}.yml'
     yaml.safe_load(t)
     open(out, 'w').write(t)
