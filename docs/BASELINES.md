@@ -185,3 +185,48 @@ MambaIRv2 and DeltaSR rows are the finished same-recipe runs (tags `main500k-*`,
 | ×4 | **DeltaSR** | | 32.83 / 0.9031 | 29.12 / 0.7937 | 27.90 / 0.7479 | 27.49 / 0.8253 | 32.10 / 0.9253 |
 
 Baseline rows are added as their tests finish.
+
+### Results so far (updated 2026-11-03 22:25, PSNR dB)
+
+Tested so far: SAN (x2/x3/x4, complete), RCAN x2, SwinIR x2. DeltaSR is best in every column; largest gain on Urban100
+(+0.75 dB over SwinIR at x2). Not in yet: HAT, EDSR, DAT, CAT-A, MambaIR (x2 training), SwinIR/RCAN x3/x4.
+
+SAN uses its official chop test (whole-image x2 ran out of memory on 32GB; whole-image x3 gave Urban100 27.92 / Manga109 33.22,
+lower than chop. The superseded whole-image rows stay in results.csv with timestamps before 19:50).
+
+**×2**
+
+| model | params | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| SAN | 15.7M | 38.10 | 33.74 | 32.23 | 32.20 | 38.71 |
+| RCAN | 15.4M | 38.16 | 33.78 | 32.29 | 32.66 | 39.24 |
+| SwinIR | 11.8M | 38.28 | 34.12 | 32.41 | 33.18 | 39.57 |
+| MambaIRv2 | 22.9M | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
+| **DeltaSR (ours)** | 25.1M | **38.47** | **34.57** | **32.51** | **33.93** | **39.94** |
+
+SSIM (×2): RCAN .9610/.9192/.9010/.9325/.9783; SAN .9608/.9194/.9004/.9291/.9771; SwinIR .9617/.9221/.9026/.9378/.9791.
+
+**×3**
+
+| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| SAN | 34.56 | 30.40 | 29.18 | 28.31 | 33.75 |
+| MambaIRv2 | 34.95 | 30.86 | 29.42 | 29.60 | 35.10 |
+| **DeltaSR (ours)** | **34.99** | **30.87** | **29.44** | **29.77** | **35.16** |
+
+SSIM (×3): SAN .9285/.8440/.8073/.8568/.9453.
+
+**RCAN check (diverged twice, see Log).** Gap to each model's own paper (×2, Set5/Set14/B100/Urban100/Manga109):
+RCAN −0.11/−0.34/−0.12/−0.68/−0.20, SwinIR (clean) −0.14/−0.34/−0.12/−0.63/−0.35, MambaIRv2 (clean) −0.19/−0.45/−0.14/−0.72/−0.52.
+RCAN's gap matches the clean runs, so the divergences did not leave it weaker. Recommendation: keep it (user decides).
+
+**×4**
+
+| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| SAN | 32.37 | 28.71 | 27.66 | 26.30 | 30.75 |
+| MambaIRv2 | 32.79 | 29.08 | 27.88 | 27.32 | 32.01 |
+| **DeltaSR (ours)** | **32.83** | **29.12** | **27.90** | **27.49** | **32.10** |
+
+So far DeltaSR is best in every column (against MambaIRv2 and SAN only). Still to come: SwinIR / RCAN x2 tests (queued),
+then HAT, EDSR, DAT, CAT-A, MambaIR as they finish training.
