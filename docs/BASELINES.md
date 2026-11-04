@@ -237,4 +237,5 @@ RCAN's gap matches the clean runs, so the divergences did not leave it weaker. R
 max norm 0.01, Restormer convention); only `train_RCAN_SR_x4_ft250k_gclip.yml` turns it on, so RCAN x4 is the one deviation from
 the shared recipe (to state in the paper). Old run 1555963 and its test 1554573 cancelled (files kept in
 `experiments/RCAN_SR_x4_ft250k/`). New run: train 1560790 (omair, V100), test 1560791, experiment `RCAN_SR_x4_ft250k_gclip`.
+Check 2026-11-04 15:47: stable, Set14 28.32 → 28.45 over the first 35k iterations (old run: 24.7 at 75k); done ~Thu 5am.
 EDSR x2 and RCAN x3 tests added above (2026-11-04 13:10).
