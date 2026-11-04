@@ -199,6 +199,7 @@ lower than chop. The superseded whole-image rows stay in results.csv with timest
 | model | params | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|---|
 | SAN | 15.7M | 38.10 | 33.74 | 32.23 | 32.20 | 38.71 |
+| EDSR | 40.7M | 38.12 | 33.80 | 32.28 | 32.51 | 39.04 |
 | RCAN | 15.4M | 38.16 | 33.78 | 32.29 | 32.66 | 39.24 |
 | SwinIR | 11.8M | 38.28 | 34.12 | 32.41 | 33.18 | 39.57 |
 | MambaIRv2 | 22.9M | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
@@ -211,6 +212,7 @@ SSIM (×2): RCAN .9610/.9192/.9010/.9325/.9783; SAN .9608/.9194/.9004/.9291/.977
 | model | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|
 | SAN | 34.56 | 30.40 | 29.18 | 28.31 | 33.75 |
+| RCAN | 34.65 | 30.48 | 29.22 | 28.65 | 34.18 |
 | MambaIRv2 | 34.95 | 30.86 | 29.42 | 29.60 | 35.10 |
 | **DeltaSR (ours)** | **34.99** | **30.87** | **29.44** | **29.77** | **35.16** |
 
@@ -219,6 +221,10 @@ SSIM (×3): SAN .9285/.8440/.8073/.8568/.9453.
 **RCAN check (diverged twice, see Log).** Gap to each model's own paper (×2, Set5/Set14/B100/Urban100/Manga109):
 RCAN −0.11/−0.34/−0.12/−0.68/−0.20, SwinIR (clean) −0.14/−0.34/−0.12/−0.63/−0.35, MambaIRv2 (clean) −0.19/−0.45/−0.14/−0.72/−0.52.
 RCAN's gap matches the clean runs, so the divergences did not leave it weaker. Recommendation: keep it (user decides).
+
+**2026-11-04: RCAN x4 ft diverged at the start** (l_pix 0.03 → 0.23 at 300 iters → 13.5 at 500). Set14 then crawled from
+13.7 to 24.7 by 75k of 250k (normal x4 ≈ 28.5). RCAN x3 ft was fine. Third RCAN divergence; asked user how to proceed.
+EDSR x2 and RCAN x3 tests added above (2026-11-04 13:10).
 
 **×4**
 
