@@ -224,6 +224,10 @@ RCAN's gap matches the clean runs, so the divergences did not leave it weaker. R
 
 **2026-11-04: RCAN x4 ft diverged at the start** (l_pix 0.03 → 0.23 at 300 iters → 13.5 at 500). Set14 then crawled from
 13.7 to 24.7 by 75k of 250k (normal x4 ≈ 28.5). RCAN x3 ft was fine. Third RCAN divergence; asked user how to proceed.
+**User decided: restart RCAN x4 with gradient clipping.** `SRModel` got an opt-in `train.use_grad_clip` (clip_grad_norm_,
+max norm 0.01, Restormer convention); only `train_RCAN_SR_x4_ft250k_gclip.yml` turns it on, so RCAN x4 is the one deviation from
+the shared recipe (to state in the paper). Old run 1555963 and its test 1554573 cancelled (files kept in
+`experiments/RCAN_SR_x4_ft250k/`). New run: train 1560790 (omair, V100), test 1560791, experiment `RCAN_SR_x4_ft250k_gclip`.
 EDSR x2 and RCAN x3 tests added above (2026-11-04 13:10).
 
 **×4**
