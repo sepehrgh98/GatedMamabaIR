@@ -221,6 +221,7 @@ RCAN's gap matches the clean runs, so the divergences did not leave it weaker. R
 
 | model | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|
+| SAN | 32.37 | 28.71 | 27.66 | 26.30 | 30.75 |
 | MambaIRv2 | 32.79 | 29.08 | 27.88 | 27.32 | 32.01 |
 | **DeltaSR (ours)** | **32.83** | **29.12** | **27.90** | **27.49** | **32.10** |
 
