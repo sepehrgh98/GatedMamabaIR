@@ -186,7 +186,10 @@ MambaIRv2 and DeltaSR rows are the finished same-recipe runs (tags `main500k-*`,
 
 Baseline rows are added as their tests finish.
 
-### Results so far (updated 2026-11-03 20:05, PSNR dB)
+### Results so far (updated 2026-11-03 22:25, PSNR dB)
+
+Tested so far: SAN (x2/x3/x4, complete), RCAN x2, SwinIR x2. DeltaSR is best in every column; largest gain on Urban100
+(+0.75 dB over SwinIR at x2). Not in yet: HAT, EDSR, DAT, CAT-A, MambaIR (x2 training), SwinIR/RCAN x3/x4.
 
 SAN uses its official chop test (whole-image x2 ran out of memory on 32GB; whole-image x3 gave Urban100 27.92 / Manga109 33.22,
 lower than chop. The superseded whole-image rows stay in results.csv with timestamps before 19:50).
@@ -195,8 +198,8 @@ lower than chop. The superseded whole-image rows stay in results.csv with timest
 
 | model | params | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|---|
-| RCAN | 15.4M | 38.16 | 33.78 | 32.29 | 32.66 | 39.24 |
 | SAN | 15.7M | 38.10 | 33.74 | 32.23 | 32.20 | 38.71 |
+| RCAN | 15.4M | 38.16 | 33.78 | 32.29 | 32.66 | 39.24 |
 | SwinIR | 11.8M | 38.28 | 34.12 | 32.41 | 33.18 | 39.57 |
 | MambaIRv2 | 22.9M | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
 | **DeltaSR (ours)** | 25.1M | **38.47** | **34.57** | **32.51** | **33.93** | **39.94** |
