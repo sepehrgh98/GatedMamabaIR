@@ -186,29 +186,36 @@ MambaIRv2 and DeltaSR rows are the finished same-recipe runs (tags `main500k-*`,
 
 Baseline rows are added as their tests finish.
 
-### Results so far (2026-11-03, PSNR dB)
+### Results so far (updated 2026-11-03 20:05, PSNR dB)
 
-Baseline tests are mostly still queued. "Preview" = final Set14 validation during training (same metric, not the test run).
-SAN rows are from the first, whole-image test: x2 ran out of memory on Urban100/Manga109 (V100 32GB), and x3 Urban100/Manga109
-look about 1 dB low (⚠️). Both are being re-tested with SAN's official chop test (jobs 1559172 / 1559173), so they are not final.
+SAN uses its official chop test (whole-image x2 ran out of memory on 32GB; whole-image x3 gave Urban100 27.92 / Manga109 33.22,
+lower than chop. The superseded whole-image rows stay in results.csv with timestamps before 19:50).
 
 **×2**
 
-| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
-|---|---|---|---|---|---|
-| MambaIRv2 | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
-| **DeltaSR (ours)** | **38.47** | **34.57** | **32.51** | **33.93** | **39.94** |
-| SwinIR (preview) | – | 34.12 | – | – | – |
-| RCAN (preview, diverged twice) | – | 33.78 | – | – | – |
-| SAN (whole-image test, redo pending) | 38.04 | 33.55 | 32.11 | OOM | OOM |
+| model | params | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|---|
+| RCAN | 15.4M | 38.16 | 33.78 | 32.29 | 32.66 | 39.24 |
+| SAN | 15.7M | 38.10 | 33.74 | 32.23 | 32.20 | 38.71 |
+| SwinIR | 11.8M | 38.28 | 34.12 | 32.41 | 33.18 | 39.57 |
+| MambaIRv2 | 22.9M | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
+| **DeltaSR (ours)** | 25.1M | **38.47** | **34.57** | **32.51** | **33.93** | **39.94** |
+
+SSIM (×2): RCAN .9610/.9192/.9010/.9325/.9783; SAN .9608/.9194/.9004/.9291/.9771; SwinIR .9617/.9221/.9026/.9378/.9791.
 
 **×3**
 
 | model | Set5 | Set14 | B100 | Urban100 | Manga109 |
 |---|---|---|---|---|---|
+| SAN | 34.56 | 30.40 | 29.18 | 28.31 | 33.75 |
 | MambaIRv2 | 34.95 | 30.86 | 29.42 | 29.60 | 35.10 |
 | **DeltaSR (ours)** | **34.99** | **30.87** | **29.44** | **29.77** | **35.16** |
-| SAN (whole-image test, redo pending) | 34.50 | 30.28 | 29.11 | 27.92 ⚠️ | 33.22 ⚠️ |
+
+SSIM (×3): SAN .9285/.8440/.8073/.8568/.9453.
+
+**RCAN check (diverged twice, see Log).** Gap to each model's own paper (×2, Set5/Set14/B100/Urban100/Manga109):
+RCAN −0.11/−0.34/−0.12/−0.68/−0.20, SwinIR (clean) −0.14/−0.34/−0.12/−0.63/−0.35, MambaIRv2 (clean) −0.19/−0.45/−0.14/−0.72/−0.52.
+RCAN's gap matches the clean runs, so the divergences did not leave it weaker. Recommendation: keep it (user decides).
 
 **×4**
 
