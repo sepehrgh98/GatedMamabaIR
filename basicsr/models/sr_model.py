@@ -111,6 +111,9 @@ class SRModel(BaseModel):
                 loss_dict['l_style'] = l_style
 
         l_total.backward()
+        # opt-in, as Restormer's ImageCleanModel (train.use_grad_clip, max norm 0.01); used for RCAN x4 (docs/BASELINES.md)
+        if self.opt['train'].get('use_grad_clip', False):
+            torch.nn.utils.clip_grad_norm_(self.net_g.parameters(), self.opt['train'].get('grad_clip_norm', 0.01))
         self.optimizer_g.step()
 
         self.log_dict = self.reduce_loss_dict(loss_dict)
