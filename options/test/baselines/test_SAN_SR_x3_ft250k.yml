@@ -73,6 +73,7 @@ path:
 
 # validation settings
 val:
+  test_chop: {shave: 10, min_size: 160000}  # official SAN test uses --chop (OOM otherwise)
   tag: baseline-sameSetup-SAN  # free-text label stored in docs/results.csv
   save_img: true
   suffix: x3ft250k
