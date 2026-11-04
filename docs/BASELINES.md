@@ -185,3 +185,37 @@ MambaIRv2 and DeltaSR rows are the finished same-recipe runs (tags `main500k-*`,
 | ×4 | **DeltaSR** | | 32.83 / 0.9031 | 29.12 / 0.7937 | 27.90 / 0.7479 | 27.49 / 0.8253 | 32.10 / 0.9253 |
 
 Baseline rows are added as their tests finish.
+
+### Results so far (2026-11-03, PSNR dB)
+
+Baseline tests are mostly still queued. "Preview" = final Set14 validation during training (same metric, not the test run).
+SAN rows are from the first, whole-image test: x2 ran out of memory on Urban100/Manga109 (V100 32GB), and x3 Urban100/Manga109
+look about 1 dB low (⚠️). Both are being re-tested with SAN's official chop test (jobs 1559172 / 1559173), so they are not final.
+
+**×2**
+
+| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 | 38.46 | 34.44 | 32.48 | 33.77 | 39.90 |
+| **DeltaSR (ours)** | **38.47** | **34.57** | **32.51** | **33.93** | **39.94** |
+| SwinIR (preview) | – | 34.12 | – | – | – |
+| RCAN (preview, diverged twice) | – | 33.78 | – | – | – |
+| SAN (whole-image test, redo pending) | 38.04 | 33.55 | 32.11 | OOM | OOM |
+
+**×3**
+
+| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 | 34.95 | 30.86 | 29.42 | 29.60 | 35.10 |
+| **DeltaSR (ours)** | **34.99** | **30.87** | **29.44** | **29.77** | **35.16** |
+| SAN (whole-image test, redo pending) | 34.50 | 30.28 | 29.11 | 27.92 ⚠️ | 33.22 ⚠️ |
+
+**×4**
+
+| model | Set5 | Set14 | B100 | Urban100 | Manga109 |
+|---|---|---|---|---|---|
+| MambaIRv2 | 32.79 | 29.08 | 27.88 | 27.32 | 32.01 |
+| **DeltaSR (ours)** | **32.83** | **29.12** | **27.90** | **27.49** | **32.10** |
+
+So far DeltaSR is best in every column (against MambaIRv2 and SAN only). Still to come: SwinIR / RCAN x2 tests (queued),
+then HAT, EDSR, DAT, CAT-A, MambaIR as they finish training.
