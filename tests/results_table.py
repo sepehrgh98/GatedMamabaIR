@@ -36,7 +36,8 @@ for r in csv.DictReader(open(CSV)):
         best[key] = (r['timestamp'], float(r['psnr']), float(r['ssim']))
 
 for scale in (2, 3, 4):
-    rows = [m for m in ORDER if any((m, scale, d) in best for d in SETS)]
+    # only finished tests: a test still running has fewer than 5 datasets in results.csv
+    rows = [m for m in ORDER if all((m, scale, d) in best for d in SETS)]
     if not rows:
         continue
     # best PSNR per dataset, bolded
