@@ -1,0 +1,482 @@
+[
+ {
+  "dataset": "Urban100",
+  "image": "img011",
+  "gain": 1.0611999999999995,
+  "box": {
+   "x": 116,
+   "y": 820,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 8.061862303990573,
+   "hr_std": 88.09204555889495
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img011.png",
+  "crop_psnr": {
+   "SwinIR": 20.737430845893414,
+   "HAT": 17.494799373735372,
+   "MambaIRv2": 17.39489669698971,
+   "DeltaSR": 25.556661677725963
+  },
+  "psnr": {
+   "DeltaSR": 20.7466,
+   "MambaIRv2": 19.0419,
+   "HAT": 19.6854,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 19.6391,
+   "RCAN": 18.3946,
+   "EDSR": 18.487,
+   "SAN": 18.2703
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img067",
+  "gain": 0.8324999999999996,
+  "box": {
+   "x": 612,
+   "y": 100,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 3.7994418019544156,
+   "hr_std": 84.52391624787556
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img067.png",
+  "crop_psnr": {
+   "SwinIR": 20.32856452331433,
+   "HAT": 20.708558730864436,
+   "MambaIRv2": 21.46441044000354,
+   "DeltaSR": 25.2638522419577
+  },
+  "psnr": {
+   "DeltaSR": 22.0959,
+   "MambaIRv2": 21.2634,
+   "HAT": 21.1786,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 20.9837,
+   "RCAN": 20.7204,
+   "EDSR": 20.3991,
+   "SAN": 20.3929
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img040",
+  "gain": 0.6592999999999982,
+  "box": {
+   "x": 132,
+   "y": 68,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.1994574591391398,
+   "hr_std": 81.2541520571687
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img040.png",
+  "crop_psnr": {
+   "SwinIR": 32.536986223214164,
+   "HAT": 34.11115097298028,
+   "MambaIRv2": 33.805336005473166,
+   "DeltaSR": 35.31060843211942
+  },
+  "psnr": {
+   "DeltaSR": 30.5829,
+   "MambaIRv2": 29.9236,
+   "HAT": 29.9183,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 29.1868,
+   "RCAN": 28.7036,
+   "EDSR": 28.4129,
+   "SAN": 27.55
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img035",
+  "gain": 0.4862000000000002,
+  "box": {
+   "x": 852,
+   "y": 4,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.3359829768645284,
+   "hr_std": 29.52911946897684
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img035.png",
+  "crop_psnr": {
+   "SwinIR": 40.71355990677315,
+   "HAT": 40.16712456702221,
+   "MambaIRv2": 40.194943162350576,
+   "DeltaSR": 41.53092613921509
+  },
+  "psnr": {
+   "DeltaSR": 31.2041,
+   "MambaIRv2": 30.6898,
+   "HAT": 30.7179,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 29.97,
+   "RCAN": 29.9141,
+   "EDSR": 29.8212,
+   "SAN": 29.5106
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img005",
+  "gain": 0.470600000000001,
+  "box": {
+   "x": 660,
+   "y": 4,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 2.1218428159059,
+   "hr_std": 13.831773062679774
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img005.png",
+  "crop_psnr": {
+   "SwinIR": 34.34722289992982,
+   "HAT": 35.55632648960212,
+   "MambaIRv2": 35.60172288965197,
+   "DeltaSR": 37.72356570555787
+  },
+  "psnr": {
+   "DeltaSR": 31.969,
+   "MambaIRv2": 31.4984,
+   "HAT": 31.3303,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 30.3461,
+   "RCAN": 28.815,
+   "EDSR": 28.505,
+   "SAN": 28.1887
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img044",
+  "gain": 0.4230000000000018,
+  "box": {
+   "x": 612,
+   "y": 4,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 2.9414689490411448,
+   "hr_std": 19.720835033110188
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img044.png",
+  "crop_psnr": {
+   "SwinIR": 35.97716056357372,
+   "HAT": 36.584490425857965,
+   "MambaIRv2": 36.87337895877245,
+   "DeltaSR": 39.81484790781358
+  },
+  "psnr": {
+   "DeltaSR": 35.3269,
+   "MambaIRv2": 34.6616,
+   "HAT": 34.9039,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 34.0628,
+   "RCAN": 33.0681,
+   "EDSR": 33.1137,
+   "SAN": 32.6861
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img041",
+  "gain": 0.3656000000000006,
+  "box": {
+   "x": 628,
+   "y": 68,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 0.7579178083027465,
+   "hr_std": 69.59414473293445
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img041.png",
+  "crop_psnr": {
+   "SwinIR": 26.631035956552015,
+   "HAT": 27.746750497742887,
+   "MambaIRv2": 27.694291519450243,
+   "DeltaSR": 28.504668306045644
+  },
+  "psnr": {
+   "DeltaSR": 28.8915,
+   "MambaIRv2": 28.508,
+   "HAT": 28.5259,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 27.32,
+   "RCAN": 26.7415,
+   "EDSR": 26.7659,
+   "SAN": 26.4659
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img025",
+  "gain": 0.36370000000000147,
+  "box": {
+   "x": 4,
+   "y": 564,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.1290567863998078,
+   "hr_std": 39.515886678632384
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img025.png",
+  "crop_psnr": {
+   "SwinIR": 31.721962401298214,
+   "HAT": 32.464600174496695,
+   "MambaIRv2": 32.368102233633245,
+   "DeltaSR": 33.5936569608965
+  },
+  "psnr": {
+   "DeltaSR": 33.371,
+   "MambaIRv2": 32.9827,
+   "HAT": 33.0073,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 32.4804,
+   "RCAN": 32.4344,
+   "EDSR": 32.2295,
+   "SAN": 32.0028
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img043",
+  "gain": 0.3514999999999944,
+  "box": {
+   "x": 20,
+   "y": 132,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 0.8031690438105166,
+   "hr_std": 88.35059651922097
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img043.png",
+  "crop_psnr": {
+   "SwinIR": 31.284554092963145,
+   "HAT": 31.688116310662622,
+   "MambaIRv2": 31.844028572828048,
+   "DeltaSR": 32.647197616638564
+  },
+  "psnr": {
+   "DeltaSR": 33.6277,
+   "MambaIRv2": 33.2762,
+   "HAT": 33.0946,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 32.6807,
+   "RCAN": 32.4196,
+   "EDSR": 32.5855,
+   "SAN": 31.9618
+  }
+ },
+ {
+  "dataset": "Urban100",
+  "image": "img010",
+  "gain": 0.3301000000000016,
+  "box": {
+   "x": 52,
+   "y": 596,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 0.8354972387197961,
+   "hr_std": 14.700039148154541
+  },
+  "preview": "docs/fig4_qualitative/preview/Urban100_img010.png",
+  "crop_psnr": {
+   "SwinIR": 35.62389038121603,
+   "HAT": 36.62272721215007,
+   "MambaIRv2": 36.38151242681959,
+   "DeltaSR": 37.458224450869864
+  },
+  "psnr": {
+   "DeltaSR": 29.2661,
+   "MambaIRv2": 28.6802,
+   "HAT": 28.936,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 28.0528,
+   "RCAN": 27.7592,
+   "EDSR": 27.6356,
+   "SAN": 27.5311
+  }
+ },
+ {
+  "dataset": "Manga109",
+  "image": "WarewareHaOniDearu",
+  "gain": 0.3542000000000023,
+  "box": {
+   "x": 228,
+   "y": 724,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.7346661183668814,
+   "hr_std": 64.96499544255882
+  },
+  "preview": "docs/fig4_qualitative/preview/Manga109_WarewareHaOniDearu.png",
+  "crop_psnr": {
+   "SwinIR": 30.46087739204785,
+   "HAT": 31.776246980641844,
+   "MambaIRv2": 31.791858974728775,
+   "DeltaSR": 33.52652509309521
+  },
+  "psnr": {
+   "DeltaSR": 26.1583,
+   "MambaIRv2": 24.9084,
+   "HAT": 25.8041,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 24.1918,
+   "RCAN": 23.2992,
+   "EDSR": 23.318,
+   "SAN": 23.733
+  }
+ },
+ {
+  "dataset": "Manga109",
+  "image": "UchiNoNyansDiary_000",
+  "gain": 0.3390999999999984,
+  "box": {
+   "x": 516,
+   "y": 164,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 2.6097920462749826,
+   "hr_std": 40.772263520209584
+  },
+  "preview": "docs/fig4_qualitative/preview/Manga109_UchiNoNyansDiary_000.png",
+  "crop_psnr": {
+   "SwinIR": 33.831253822345936,
+   "HAT": 37.45396938687046,
+   "MambaIRv2": 35.97405585853532,
+   "DeltaSR": 40.06376143314527
+  },
+  "psnr": {
+   "DeltaSR": 31.5261,
+   "MambaIRv2": 30.9787,
+   "HAT": 31.187,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 30.4648,
+   "RCAN": 29.7643,
+   "EDSR": 29.933,
+   "SAN": 29.4014
+  }
+ },
+ {
+  "dataset": "Manga109",
+  "image": "YouchienBoueigumi",
+  "gain": 0.32319999999999993,
+  "box": {
+   "x": 308,
+   "y": 884,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.8409537897610448,
+   "hr_std": 12.017697322489548
+  },
+  "preview": "docs/fig4_qualitative/preview/Manga109_YouchienBoueigumi.png",
+  "crop_psnr": {
+   "SwinIR": 44.49758823117484,
+   "HAT": 45.814668486454224,
+   "MambaIRv2": 46.52016596171619,
+   "DeltaSR": 48.3611197514771
+  },
+  "psnr": {
+   "DeltaSR": 35.4261,
+   "MambaIRv2": 35.0841,
+   "HAT": 35.1029,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 34.3973,
+   "RCAN": 34.1631,
+   "EDSR": 34.2553,
+   "SAN": 33.3869
+  }
+ },
+ {
+  "dataset": "Manga109",
+  "image": "TennenSenshiG",
+  "gain": 0.3044000000000011,
+  "box": {
+   "x": 164,
+   "y": 916,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 0.953872768722924,
+   "hr_std": 50.95956920727096
+  },
+  "preview": "docs/fig4_qualitative/preview/Manga109_TennenSenshiG.png",
+  "crop_psnr": {
+   "SwinIR": 33.765501030081055,
+   "HAT": 34.086999952359,
+   "MambaIRv2": 34.07298332168231,
+   "DeltaSR": 35.04087272108187
+  },
+  "psnr": {
+   "DeltaSR": 27.0106,
+   "MambaIRv2": 26.6954,
+   "HAT": 26.7062,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 26.2157,
+   "RCAN": 25.8483,
+   "EDSR": 25.7392,
+   "SAN": 25.6433
+  }
+ },
+ {
+  "dataset": "Manga109",
+  "image": "TotteokiNoABC",
+  "gain": 0.3021000000000029,
+  "box": {
+   "x": 4,
+   "y": 180,
+   "w": 160,
+   "h": 160,
+   "crop_gain": 1.8623104591073272,
+   "hr_std": 35.17956625521651
+  },
+  "preview": "docs/fig4_qualitative/preview/Manga109_TotteokiNoABC.png",
+  "crop_psnr": {
+   "SwinIR": 34.64430401749817,
+   "HAT": 36.044244723325036,
+   "MambaIRv2": 35.86747766432738,
+   "DeltaSR": 37.90655518243236
+  },
+  "psnr": {
+   "DeltaSR": 36.0416,
+   "MambaIRv2": 35.7228,
+   "HAT": 35.7395,
+   "DAT": null,
+   "CAT-A": null,
+   "MambaIR": null,
+   "SwinIR": 35.0477,
+   "RCAN": 33.9361,
+   "EDSR": 34.5233,
+   "SAN": 33.7493
+  }
+ }
+]
