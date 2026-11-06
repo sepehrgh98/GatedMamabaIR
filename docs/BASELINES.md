@@ -136,24 +136,31 @@ changed with `scontrol update NumCPUs/MinCPUsNode` after submission do not get s
 the original test jobs were re-pointed to them (`scontrol update Dependency=`), and then the old training jobs were cancelled.
 RCAN's new x2 (1555960) auto-resumes from the 140k state. Lesson: set CPUs at submit time (`sbatch -c 5`), never with scontrol.
 
-## Status and finish estimate (2026-11-02 19:25)
+## Status (2026-11-05 21:10)
 
-Each model needs x2 (500k), then x3 + x4 fine-tunes (start together when x2 is done), each followed by a test.
-7 of 8 training, no crashes. Times are rough (x3/x4 need 2 GPUs each and may queue).
+Each model needs x2 (500k), then x3 + x4 fine-tunes (start together when x2 is done), each followed by a test (5-20 min).
+✅ trained + tested · 🟢 training now · ⏳ waiting. Times are rough.
 
-| # | model | x2 status | x2 done (approx.) | x3 + x4 done (approx.) |
-|---|---|---|---|---|
-| 1 | SAN | running, 375k / 500k | Tue Nov 3, 3am | ~Wed Nov 4 |
-| 2 | RCAN | running, 304k / 500k (diverged twice, recovered; user decides keep vs rerun with grad clipping after its x2 test) | Tue Nov 3, 9am | ~Wed Nov 4 |
-| 3 | SwinIR | running, 381k / 500k | Tue Nov 3, noon | ~Wed Nov 4 |
-| 4 | HAT | running, 297k / 500k | Wed Nov 4, 8am | ~Thu-Fri Nov 5-6 |
-| 5 | EDSR | waiting (`swamy` 4-GPU cap); starts when RCAN finishes | ~Wed Nov 4, evening | ~Thu Nov 5 |
-| 6 | DAT | running, 249k / 500k | Thu Nov 5, ~midnight | ~Fri-Sat Nov 6-7 |
-| 7 | CAT-A | running, 124k / 500k | Thu Nov 5, 3am | ~Fri-Sat Nov 6-7 |
-| 8 | MambaIR | running (A100-80GB), 65k / 500k | Fri Nov 6, 4pm | ~Nov 8-9 |
+| model | ×2 | ×3 | ×4 |
+|---|---|---|---|
+| SAN | ✅ | ✅ | ✅ |
+| SwinIR | ✅ | ✅ | ✅ |
+| RCAN | ✅ | ✅ | ✅ (gradient-clipping run) |
+| EDSR | ✅ | ✅ | ✅ |
+| HAT | ✅ | ✅ | ✅ |
+| DAT | ✅ | 🟢 Fri Nov 6 ~6am | 🟢 Fri Nov 6 ~6am |
+| CAT-A | ✅ | 🟢 Fri Nov 6 ~6am | 🟢 Fri Nov 6 ~8am |
+| MambaIR | 🟢 Fri Nov 6 ~5pm | ⏳ after ×2 | ⏳ after ×2 |
 
-**All done (x2 + x3 + x4 + tests): about Nov 9-12** (earlier than the Nov 12-15 estimate below).
-Already done with the same recipe: MambaIRv2 and DeltaSR, x2 / x3 / x4.
+| | trainings (24) | tests (24) |
+|---|---|---|
+| ✅ done | 17 | 17 |
+| 🟢 running | 5 | 0 |
+| ⏳ waiting | 2 (MambaIR ×3/×4) | 7 (each runs right after its training) |
+
+**All done (x2 + x3 + x4 + tests): about Sun Nov 8, night** (MambaIR ×3/×4 take ~2 days after its ×2).
+Fri morning: 7 of 8 models complete. Already done with the same recipe: MambaIRv2 and DeltaSR, x2 / x3 / x4.
+(Earlier estimates: Nov 12-15 on Nov 1, Nov 9-12 on Nov 2.)
 
 ## Timeline estimate (made 2026-11-01)
 
