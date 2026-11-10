@@ -47,6 +47,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = osp.abspath(osp.join(osp.dirname(__file__), osp.pardir))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, osp.dirname(osp.abspath(__file__)))
+import heatmap_autopick  # noqa: E402
 from basicsr.archs import gatedmambair_arch, mambairv2_arch  # noqa: E402
 from basicsr.archs.gatedmambair_arch import GatedMambaIR  # noqa: E402
 from basicsr.archs.mambairv2_arch import MambaIRv2  # noqa: E402
@@ -246,10 +248,19 @@ def display_map(heat, q, pct, gamma, dilate=0):
     return hm ** gamma
 
 
+# query marker, set from --marker / --marker_color / --marker_size in main()
+MARKER = dict(marker='*', ms=14, mec='white', mfc='lime', mew=1.2)
+MARKER_SHAPES = {'star': '*', 'cross': 'X', 'plus': 'P', 'circle': 'o', 'square': 's', 'diamond': 'D'}
+
+
+def draw_marker(ax, q):
+    ax.plot(q[1], q[0], **MARKER)
+
+
 def overlay(ax, gray, hm, q, alpha, cmap):
     ax.imshow(gray, cmap='gray', vmin=0, vmax=1)
     ax.imshow(hm, cmap=cmap, alpha=alpha * hm ** 0.5, vmin=0, vmax=1)  # weak values fade into the image
-    ax.plot(q[1], q[0], marker='*', ms=14, mec='white', mfc='lime', mew=1.2)
+    draw_marker(ax, q)
     ax.set_axis_off()
 
 
@@ -259,7 +270,7 @@ def save_panel(path, gray, hm, q, alpha, cmap, rgb=None):
     ax = fig.add_axes([0, 0, 1, 1])
     if rgb is not None:
         ax.imshow(rgb)
-        ax.plot(q[1], q[0], marker='*', ms=14, mec='white', mfc='lime', mew=1.2)
+        draw_marker(ax, q)
         ax.set_axis_off()
     else:
         overlay(ax, gray, hm, q, alpha, cmap)
@@ -270,7 +281,7 @@ def save_panel(path, gray, hm, q, alpha, cmap, rgb=None):
 def save_figure(path, rgb, gray, maps, labels, q, alpha, cmap, title):
     fig, axes = plt.subplots(1, 3, figsize=(15, 5 * gray.shape[0] / gray.shape[1] + 0.6))
     axes[0].imshow(rgb)
-    axes[0].plot(q[1], q[0], marker='*', ms=14, mec='white', mfc='lime', mew=1.2)
+    draw_marker(axes[0], q)
     axes[0].set_title('LR input, query *')
     axes[0].set_axis_off()
     for ax, hm, lab in zip(axes[1:], maps, labels):
@@ -311,7 +322,14 @@ def parse_args():
     p.add_argument('--ckpt_b', default=None, help='override checkpoint of model B')
     p.add_argument('--label_a', default='MambaIRv2')
     p.add_argument('--label_b', default='DeltaSR (ours)')
-    p.add_argument('--crop', default=None, help='"row,col,height,width" crop of the LR image before probing')
+    p.add_argument('--crop', default=None,
+                   help='"row,col,height,width" crop of the LR image before probing, or "auto": the --crop_size '
+                        'window with the most repeating structure (see analysis/heatmap_autopick.py)')
+    p.add_argument('--crop_size', type=int, default=256, help='window size for --crop auto')
+    p.add_argument('--auto_queries', type=int, default=0,
+                   help='without --query: pick this many query points on repeating structure automatically '
+                        '(0 = image centre, as before)')
+    p.add_argument('--min_sep', type=int, default=48, help='min distance in pixels between automatic queries')
     p.add_argument('--jac', choices=['frob', 'sum'], default='frob',
                    help='frob: ||J_qi||_F via random probes; sum: |grad of sum_c o_q[c]| summed over channels')
     p.add_argument('--n_probe', type=int, default=16, help='random probes per query for --jac frob')
@@ -325,6 +343,9 @@ def parse_args():
     p.add_argument('--dilate', type=int, default=0, help='display: max-filter radius in pixels (0 = off)')
     p.add_argument('--alpha', type=float, default=0.85, help='display: max heatmap opacity')
     p.add_argument('--cmap', default='jet')
+    p.add_argument('--marker', choices=sorted(MARKER_SHAPES), default='star', help='display: query marker')
+    p.add_argument('--marker_color', default='lime', help='display: query marker fill colour')
+    p.add_argument('--marker_size', type=float, default=14, help='display: query marker size in points')
     p.add_argument('--grid_step', type=int, default=20)
     p.add_argument('--out_dir', default='results/memory_heatmap')
     p.add_argument('--device', default='cuda')
@@ -333,6 +354,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    MARKER.update(marker=MARKER_SHAPES[args.marker], mfc=args.marker_color, ms=args.marker_size)
     os.makedirs(args.out_dir, exist_ok=True)
     layers = [tuple(int(v) for v in s.split('.')) for s in args.layers]
     nets = [build_model(args.opt_a, args.ckpt_a, args.device), build_model(args.opt_b, args.ckpt_b, args.device)]
@@ -345,14 +367,22 @@ def main():
         assert bgr is not None, f'cannot read {img_path}'
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
         if args.crop:
-            r0, c0, ch, cw = (int(v) for v in args.crop.split(','))
+            if args.crop == 'auto':
+                r0, c0, ch, cw = heatmap_autopick.pick_crop(rgb, args.crop_size)
+                print(f'{name}: auto crop {r0},{c0},{ch},{cw}')
+            else:
+                r0, c0, ch, cw = (int(v) for v in args.crop.split(','))
             rgb = rgb[r0:r0 + ch, c0:c0 + cw]
             name += f'_crop{r0}_{c0}'
         h, w = rgb.shape[:2]
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         save_grid(osp.join(args.out_dir, f'{name}_grid.png'), rgb, args.grid_step)
 
-        queries = [tuple(int(v) for v in s.split(',')) for s in args.query] or [(h // 2, w // 2)]
+        queries = [tuple(int(v) for v in s.split(',')) for s in args.query]
+        if not queries and args.auto_queries > 0:
+            queries = heatmap_autopick.pick_queries(rgb, args.auto_queries, args.min_sep)
+            print(f'{name}: auto queries {queries}')
+        queries = queries or [(h // 2, w // 2)]
         for r, c in queries:
             assert 0 <= r < h and 0 <= c < w, f'query {(r, c)} outside image {h}x{w}'
         img = torch.from_numpy(rgb).permute(2, 0, 1)[None].to(args.device)

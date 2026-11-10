@@ -78,3 +78,15 @@ Across all 66 pairs:
 - Its `far_mass` is higher or equal in 56 pairs.
 
 The pictures and the numbers agree once you read them correctly: DeltaSR reads from *many* matching windows spread over the facade, which scores as "less concentrated". MambaIRv2 reads a narrow band of recent neighbours. So for the paper, describe the figure as "DeltaSR reads from repeated structure across the image", not "DeltaSR is more focused".
+
+## Pass 5: large batch for picking Fig. 1 examples
+
+Launcher: [`pass5.sh`](pass5.sh) (`sbatch docs/memory_heatmap/pass5.sh` from the repo root on Speed).
+All 100 Urban100 ×2 images, layer 2.3, the same probe and display settings as pass 4.
+No hand picking is needed before the run:
+- `--crop auto`: the 256×256 window where the structure repeats most.
+- `--auto_queries 4`: 4 points on repeating structure, at least 48 px apart, snapped into the flattest nearby pixel (a pane).
+
+Both are done by `analysis/heatmap_autopick.py`, which needs no GPU. Run `python analysis/heatmap_autopick.py <img>` to preview the crop and the points.
+At the end, `results/memory_heatmap/pass5/sheet_L2.3.pdf` numbers every example (tags in `sheet_L2.3_index.txt`), so you can pick from it.
+The query marker can be changed with `--marker {star,cross,plus,circle,square,diamond} --marker_color --marker_size`.
