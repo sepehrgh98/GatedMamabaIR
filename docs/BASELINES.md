@@ -58,6 +58,7 @@ the official classic-SR ones. Params below are measured with our code (`tests/ch
 | 6 | 3 | EDSR (large) | XPixelGroup/BasicSR @ 8d56e3a (`basicsr/archs/edsr_arch.py`), 256 feats, 32 blocks, res 0.1 | `edsr_arch.py` | 40.73M / 43.68M / 43.09M | 40.7M (×2) |
 | 7 | 2 | CAT-A | zhengchen1999/CAT @ 89cbfc8 (`basicsr/archs/cat_arch.py`) | `cat_arch.py` | 16.46M / 16.64M / 16.60M | 16.5M |
 | 8 | 3 | SAN | daitao/SAN @ 7c1e61f (`TrainCode/model/san.py`, `common.py`, `MPNCOV.py`) | `san_arch.py` | 15.71M / 15.90M / 15.86M | 15.7M |
+| 9 | 1 | MaIR (CVPR 2025) | XLearning-SCU/2025-CVPR-MaIR @ 07d58af (`basicsr/archs/mair_arch.py`, `shift_scanf_util.py`) | `mair_arch.py` | 19.44M / 19.63M / 19.59M | added 2026-11-17, see MaIR section |
 
 Port notes:
 - SwinIR: only added the `ARCH_REGISTRY` decorator and removed the `__main__` demo. HAT, DAT, CAT, RCAN, EDSR: unchanged.
@@ -175,6 +176,62 @@ so 10-13 days. MambaIR is likely last (slowest model, waits for an A100-80GB).
 | ~Nov 12-15 | MambaIR (x2 then x3/x4); all tests |
 
 Faster if more GPUs free up; slower if a run diverges again or the queue stays full.
+
+## MaIR (added 2026-11-17)
+
+Goal: add MaIR (CVPR 2025, Mamba-based) to Table I, trained from scratch with exactly the recipe above. No official
+numbers, no official weights.
+
+**Source:** https://github.com/XLearning-SCU/2025-CVPR-MaIR @ `07d58af` ("update SR results").
+**Arch files:** `basicsr/archs/mair_arch.py` (from `basicsr/archs/mair_arch.py`) and `basicsr/archs/shift_scanf_util.py`
+(scan-index helpers it imports; copied unchanged). Changes to `mair_arch.py`, nothing else:
+- `@ARCH_REGISTRY.register()` on `MaIR` re-enabled. It is commented out in the release, so `type: MaIR` would not resolve.
+- The hard-coded `sys.path.append('/xlearning/boyun/codes/MaIR')` and the try/except import fallback became plain imports.
+
+**Hyperparameters:** official classical SR (`options/train/train_MaIR_SR_x2.yml`, not MaIR_S / MaIR_T): `embed_dim` 180,
+`depths` [6]*6, `d_state` 16, `ssm_ratio` 2.0, `mlp_ratio` 2.5, `scan_len` 8, `upsampler` pixelshuffle,
+`resi_connection` 1conv, `img_size` 64, `dynamic_ids` False, `img_range` 1.
+
+**Official `batch_size: 4` in network_g: unused, so dropped.** `MaIR.__init__` has no `batch_size` argument; it falls into
+`**kwargs` and is never read. The precomputed scan ids (`_generate_ids`) are built for shape `(1, 1, H, W)` with
+`H = W = img_size = 64` and applied by `torch.index_select` on the flattened spatial axis, so they are independent of the batch.
+Checked (`tests/check_mair.py`): sample 0 alone vs inside the training batch, max |diff| 2.4e-7 (x2, batch 4), 0 (x3, batch 2),
+6.7e-5 (x4, batch 2; float noise of the CUDA scan). So batch 4 at x2 and 2 at x3/x4 need no change.
+`img_size` 64 = the LR training patch at every scale (128/2, 192/3, 256/4), so training uses the precomputed ids.
+For any other size (full test images, MambaIRModel tiles) `forward_features` regenerates the ids for that H x W, so whole-image
+testing works. Checked at 37x53, 99x131 and 227x322 (largest test tile) at x2/x3/x4.
+
+**Environment:** MaIR expects `mamba_ssm==1.0.1`, `causal_conv1d==1.0.0`. `GMambaIR_env` (used for MambaIR / MambaIRv2 /
+DeltaSR) already has exactly these (plus timm 0.9.16, einops 0.7.0, torch 2.0.1+cu117). No separate environment.
+
+**Params (our code, `tests/check_mair.py`, job 1622970, 2026-11-17):** x2 19,444,247 (19.44M), x3 19,628,887 (19.63M),
+x4 19,591,959 (19.59M). x2 -> x3 load (strict false) skips only `upsample.0.{weight,bias}`; x2 -> x4 loads everything and
+`upsample.2.*` is new (the x4 upsampler has two stages), as for the other pixelshuffle baselines.
+
+**Memory:** x2 training (batch 4, LR 64) does not fit a 19.5 GiB A100 MIG slice (OOM). x3/x4 (batch 2): 12.3 GiB peak.
+Testing: under 3 GiB.
+
+**Configs** (generated: `python tests/make_baseline_configs.py MaIR`; only network_g / name / tag differ from the other baselines):
+`options/train/baselines/train_MaIR_SR_x2_500k.yml`, `train_MaIR_SR_x{3,4}_ft250k.yml`,
+`options/test/baselines/test_MaIR_SR_x2_500k.yml`, `test_MaIR_SR_x{3,4}_ft250k.yml`. Recipe exactly as in the table at the top:
+x2 from scratch, DF2K, crop 128, hflip + rot, batch 4, 4 workers, enlarge 100, seed 10, 500k, Adam 2e-4 [0.9, 0.99],
+MultiStepLR [250k, 400k, 450k, 475k] gamma 0.5, L1, no warmup. x3/x4: 250k from MaIR's own x2 `net_g_500000.pth`,
+`strict_load_g: false`, lr 1e-4, milestones [125k, 200k, 225k, 237.5k], batch 2, crop 192 / 256.
+Training script: our `basicsr/train.py` via `train.sh` (1 GPU, `--auto_resume`), not MaIR's `trainF.py` / 8-GPU setup.
+
+**Testing:** `model_type: MambaIRModel`, which is what the official `options/test/test_MaIR_SR_x*.yml` uses (official
+`basicsr/models/mambair_model.py` is byte-identical to ours): whole image, tiled into overlapping ~200 px LR pieces with reflect
+padding of the remainder. No other padding. Set5, Set14, B100, Urban100, Manga109; PSNR/SSIM on Y, `crop_border` = scale,
+no self-ensemble, final checkpoint. Results tag `baseline-sameSetup-MaIR`.
+
+**GPUs:** x2 (+ resume) on A100 80GB (as MambaIR x2), x3/x4 on V100 32GB (as the other ft runs), tests on V100. GPU type changes
+only speed.
+
+**Jobs** (launch: `X2_GPU= FT_GPU="--gres=gpu:1 --constraint=Model-V100" bash tests/launch_baselines.sh MaIR <account>`):
+
+| model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| MaIR | | | | | | | | | | | about to launch |
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
