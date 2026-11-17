@@ -231,7 +231,9 @@ only speed.
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| MaIR | | | | | | | | | | | about to launch |
+| MaIR | swamy | 1622983 | 1622984 | 1622985 | 1622986 | 1622987 | 1622988 | 1622989 | | | x2 queued (A100 80GB, Priority) |
+
+Submitted 2026-11-17 ~16:00 from main @ a1c9a70 (the main checkout's branch had main merged in, 3fc88f9), `-c 5`, `ExcNodeList=speed-[01,05,17,38]`. If x2 finishes OK, cancel 1622984 (resume).
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
