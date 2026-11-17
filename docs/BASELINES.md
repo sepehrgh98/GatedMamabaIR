@@ -224,16 +224,18 @@ Training script: our `basicsr/train.py` via `train.sh` (1 GPU, `--auto_resume`),
 padding of the remainder. No other padding. Set5, Set14, B100, Urban100, Manga109; PSNR/SSIM on Y, `crop_border` = scale,
 no self-ensemble, final checkpoint. Results tag `baseline-sameSetup-MaIR`.
 
-**GPUs:** x2 (+ resume) on A100 80GB (as MambaIR x2), x3/x4 on V100 32GB (as the other ft runs), tests on V100. GPU type changes
+**GPUs:** x2 (+ resume) on V100 32GB (planned A100 80GB, moved 2026-11-17, see Jobs), x3/x4 on V100 32GB (as the other ft runs), tests on V100. GPU type changes
 only speed.
 
 **Jobs** (launch: `X2_GPU= FT_GPU="--gres=gpu:1 --constraint=Model-V100" bash tests/launch_baselines.sh MaIR <account>`):
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| MaIR | swamy | 1622983 | 1622984 | 1622985 | 1622986 | 1622987 | 1622988 | 1622989 | | | x2 queued (A100 80GB, Priority) |
+| MaIR | swamy | 1622993 (1622983 cancelled) | 1622994 (1622984 cancelled) | 1622985 | 1622986 | 1622987 | 1622988 | 1622989 | | | x2 queued (V100, Priority) |
 
-Submitted 2026-11-17 ~16:00 from main @ a1c9a70 (the main checkout's branch had main merged in, 3fc88f9), `-c 5`, `ExcNodeList=speed-[01,05,17,38]`. If x2 finishes OK, cancel 1622984 (resume).
+Submitted 2026-11-17 ~16:00 from main @ a1c9a70 (the main checkout's branch had main merged in, 3fc88f9), `-c 5`, `ExcNodeList=speed-[01,05,17,38]`. If x2 finishes OK, cancel 1622994 (resume).
+
+**2026-11-17, x2 moved to V100 (user OK'd).** All six A100 80GB slots were held to Nov 23-24 and Slurm estimated the x2 start at Nov 30. A V100 frees around Nov 19. x2 batch 4 should need about 24-25 GiB (x3/x4 batch 2 at the same 64x64 LR patch peak at 12.3 GiB), so it should fit 32 GB; not yet measured. x2 + resume were resubmitted fresh on V100 (1622993 / 1622994), the x2 test and x3/x4 jobs re-pointed with `scontrol update Dependency=`, the A100 pair (1622983 / 1622984) cancelled. Recipe unchanged.
 
 ## Results (PSNR / SSIM, Y channel, same setup)
 
