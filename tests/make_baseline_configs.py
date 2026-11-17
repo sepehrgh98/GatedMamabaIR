@@ -4,7 +4,7 @@ Only the header, name, model_type, network_g, pretrain path, test padding and re
 schedule, seed and test protocol are copied verbatim from
   options/train/mambairv2/train_MambaIRv2_SR_x2_500k.yml, train_MambaIRv2_SR_x{3,4}_ft250k.yml
   options/test/mambairv2/test_MambaIRv2_SR_x2_500k.yml, test_MambaIRv2_SR_x{3,4}_ft250k.yml
-usage: python tests/make_baseline_configs.py   (run from the repo root)
+usage: python tests/make_baseline_configs.py [Model ...]   (run from the repo root; no args = all models)
 """
 import re
 import yaml
@@ -130,6 +130,25 @@ MODELS = {
   res_scale: 1
   img_range: 255.
 '''),
+    'MaIR': dict(  # MaIR @ 07d58af options/train/train_MaIR_SR_x2.yml (classical SR, not MaIR_S / MaIR_T);
+        # official test_MaIR_SR_x*.yml uses MambaIRModel (tiled whole-image test). Official batch_size: 4 is dropped:
+        # the arch swallows it in **kwargs and never uses it (docs/BASELINES.md, MaIR).
+        model_type='MambaIRModel', test_pad=None,
+        net='''  type: MaIR
+  upscale: {s}
+  in_chans: 3
+  img_size: 64
+  img_range: 1.
+  d_state: 16
+  depths: [6, 6, 6, 6, 6, 6]
+  embed_dim: 180
+  ssm_ratio: 2.0
+  mlp_ratio: 2.5
+  upsampler: 'pixelshuffle'
+  resi_connection: '1conv'
+  dynamic_ids: False
+  scan_len: 8
+'''),
 }
 
 
@@ -180,7 +199,11 @@ if __name__ == '__main__':
     import os
     os.makedirs('options/train/baselines', exist_ok=True)
     os.makedirs('options/test/baselines', exist_ok=True)
+    import sys
+    only = sys.argv[1:]  # optional model names, e.g. `python tests/make_baseline_configs.py MaIR`
     for model, m in MODELS.items():
+        if only and model not in only:
+            continue
         for s in (2, 3, 4):
             for kind in ('train', 'test'):
                 print(make(model, m, s, kind))

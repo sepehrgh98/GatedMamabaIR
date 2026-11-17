@@ -6,6 +6,10 @@
 #   e.g. bash tests/launch_baselines.sh SwinIR swamy
 # Prints one line per job id; paste into docs/BASELINES.md.
 # If the x2 run finishes OK, cancel its resume job (afternotok is then never satisfied).
+# Optional env overrides (added for MaIR, 2026-11-17; defaults keep train.sh's A100-80GB request):
+#   X2_GPU / FT_GPU = extra sbatch args for the x2 (+ resume) / x3,x4 training jobs,
+#   e.g. FT_GPU="--gres=gpu:1 --constraint=Model-V100". CPUS (default 5) is set at submit time
+#   (changing it later with scontrol leaves jobs unschedulable, see docs/BASELINES.md Log 2026-11-01).
 set -e
 M=$1
 ACC=${2:-omair}
@@ -13,15 +17,18 @@ TR=options/train/baselines
 TE=options/test/baselines
 TEST_GPU="--gres=gpu:1 --constraint=Model-V100"  # whole-image tests; 32GB
 EXC="--exclude=speed-[01,05,17,38]"
+X2_GPU=${X2_GPU:-}
+FT_GPU=${FT_GPU:-}
+CPUS=${CPUS:-5}
 
-sub() { sbatch --parsable -A "$ACC" $EXC "$@"; }
+sub() { sbatch --parsable -A "$ACC" -c "$CPUS" $EXC "$@"; }
 
-t2=$(sub --job-name=BL_${M}_x2 train.sh $TR/train_${M}_SR_x2_500k.yml)
-r2=$(sub --job-name=BL_${M}_x2_resume --dependency=afternotok:$t2 train.sh $TR/train_${M}_SR_x2_500k.yml)
+t2=$(sub --job-name=BL_${M}_x2 $X2_GPU train.sh $TR/train_${M}_SR_x2_500k.yml)
+r2=$(sub --job-name=BL_${M}_x2_resume $X2_GPU --dependency=afternotok:$t2 train.sh $TR/train_${M}_SR_x2_500k.yml)
 ok2="afterok:$t2?afterok:$r2"
 e2=$(sub --job-name=BL_${M}_x2_test $TEST_GPU --dependency=$ok2 tests/test_cfg.sh $TE/test_${M}_SR_x2_500k.yml)
-t3=$(sub --job-name=BL_${M}_x3 --dependency=$ok2 train.sh $TR/train_${M}_SR_x3_ft250k.yml)
-t4=$(sub --job-name=BL_${M}_x4 --dependency=$ok2 train.sh $TR/train_${M}_SR_x4_ft250k.yml)
+t3=$(sub --job-name=BL_${M}_x3 $FT_GPU --dependency=$ok2 train.sh $TR/train_${M}_SR_x3_ft250k.yml)
+t4=$(sub --job-name=BL_${M}_x4 $FT_GPU --dependency=$ok2 train.sh $TR/train_${M}_SR_x4_ft250k.yml)
 e3=$(sub --job-name=BL_${M}_x3_test $TEST_GPU --dependency=afterok:$t3 tests/test_cfg.sh $TE/test_${M}_SR_x3_ft250k.yml)
 e4=$(sub --job-name=BL_${M}_x4_test $TEST_GPU --dependency=afterok:$t4 tests/test_cfg.sh $TE/test_${M}_SR_x4_ft250k.yml)
 echo "$M account=$ACC x2=$t2 x2_resume=$r2 x2_test=$e2 x3=$t3 x4=$t4 x3_test=$e3 x4_test=$e4"
