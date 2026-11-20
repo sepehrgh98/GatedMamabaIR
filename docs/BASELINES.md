@@ -231,7 +231,7 @@ only speed.
 
 | model | account | x2 | x2 resume | x2 test | x3 | x4 | x3 test | x4 test | s/iter ×2 (first 1k) | ETA ×2 | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| MaIR | swamy | 1622993 (1622983 cancelled) | 1622994 (1622984 cancelled) | 1622985 | 1622986 | 1622987 | 1622988 | 1622989 | | | x2 queued (V100, Priority) |
+| MaIR | swamy | 1622993 (1622983 cancelled) | 1622994 (1622984 cancelled) | 1622985 | 1622986 | 1622987 | 1622988 | 1622989 | 1.33 (V100, 5 CPUs) | ~Nov 26-27 (hits 7-day limit at ~455k on Nov 25 19:45, resume 1622994 finishes) | x2 running on speed-03 since 2026-11-18 19:43; 119.3k on 2026-11-20 16:03, Set14 33.65 (best 33.78 @ 95k) |
 
 Submitted 2026-11-17 ~16:00 from main @ a1c9a70 (the main checkout's branch had main merged in, 3fc88f9), `-c 5`, `ExcNodeList=speed-[01,05,17,38]`. If x2 finishes OK, cancel 1622994 (resume).
 
